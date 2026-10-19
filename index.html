@@ -55,7 +55,6 @@
             animation: lc-spin 2.5s linear infinite;
         }
         @keyframes lc-spin { to { transform: rotate(360deg); } }
-        /* 起動中はレーダーが高速回転＋強発光 */
         .lc-radar.booting { box-shadow: 0 0 60px rgba(0,243,255,.9), inset 0 0 60px rgba(0,243,255,.6); }
         .lc-radar.booting .lc-sweep { animation: lc-spin .3s linear infinite; background: conic-gradient(from 0deg, transparent 0deg, rgba(0,243,255,.9) 60deg, transparent 100deg); }
 
@@ -88,7 +87,6 @@
             transition: all .35s ease; position: relative; overflow: hidden;
         }
         .lc-dept.show { opacity: 1; transform: translateX(0); }
-        /* 報告時のスキャン発光エフェクト */
         .lc-dept.reporting {
             border-color: #38bdf8 !important;
             box-shadow: 0 0 15px rgba(56,189,248,.6), inset 0 0 15px rgba(56,189,248,.2);
@@ -517,7 +515,6 @@ class SoundEngine {
     }
     playOpen() {
         if (!this.enabled) return; this.init(); if (!this.ctx) return;
-        // 太鼓の音（ドン）
         try {
             const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
             o.type = 'sine'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .4);
@@ -561,14 +558,11 @@ class SoundEngine {
             o.connect(g2); g2.connect(this.ctx.destination); o.start(t + .1); o.stop(t + .25);
         } catch (e) {}
     }
-
-    /* ===== 大げさなシステム起動SE ===== */
     playBootSequence() {
         if (!this.enabled) return; this.init(); if (!this.ctx) return;
         const ctx = this.ctx;
         const t0 = ctx.currentTime;
         try {
-            // 1. 重低音ブート（サブベースのスイープアップ）
             const sub = ctx.createOscillator(), subG = ctx.createGain();
             sub.type = 'sine';
             sub.frequency.setValueAtTime(30, t0);
@@ -581,7 +575,6 @@ class SoundEngine {
             sub.connect(subG); subG.connect(ctx.destination);
             sub.start(t0); sub.stop(t0 + 2.4);
 
-            // 2. 空気が抜けるシュゥゥゥ（ホワイトノイズ＋ローパスフィルタのスイープ）
             const nLen = Math.floor(ctx.sampleRate * 1.8);
             const nBuf = ctx.createBuffer(1, nLen, ctx.sampleRate);
             const nData = nBuf.getChannelData(0);
@@ -598,7 +591,6 @@ class SoundEngine {
             noise.connect(noiseF); noiseF.connect(noiseG); noiseG.connect(ctx.destination);
             noise.start(t0); noise.stop(t0 + 1.8);
 
-            // 3. コンピュータ起動風の高速アルペジオ（ピロピロピロ…）
             const arpNotes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093, 2637];
             arpNotes.forEach((fr, i) => {
                 const o = ctx.createOscillator(), g = ctx.createGain();
@@ -610,7 +602,6 @@ class SoundEngine {
                 o.start(st); o.stop(st + 0.08);
             });
 
-            // 4. 管制室のざわめき風（低いノイズをうっすら）
             const nLen2 = Math.floor(ctx.sampleRate * 2.0);
             const nBuf2 = ctx.createBuffer(1, nLen2, ctx.sampleRate);
             const nData2 = nBuf2.getChannelData(0);
@@ -626,7 +617,6 @@ class SoundEngine {
             noise2.connect(noiseF2); noiseF2.connect(noiseG2); noiseG2.connect(ctx.destination);
             noise2.start(t0); noise2.stop(t0 + 2.2);
 
-            // 5. 起動完了の「チャイム」（キンコーン）
             [1046.5, 1318.5, 1567.98].forEach((fr, i) => {
                 const o = ctx.createOscillator(), g = ctx.createGain();
                 const st = t0 + 2.0 + i * 0.08;
@@ -642,10 +632,6 @@ class SoundEngine {
 const sound = new SoundEngine();
 let voiceEnabled = true;
 
-/**
- * かっこいい報告用の読み上げ
- * - rate: 少し遅め、pitch: 低め（重厚な男性声風）、volume: 大きめ
- */
 function speakReport(text) {
     if (!voiceEnabled || !('speechSynthesis' in window)) return;
     try {
@@ -1531,10 +1517,17 @@ const DEPT_KEYWORDS = {
 };
 
 const SPEECH_CORRECTIONS = {
+    // 開店の誤認識
     '回転': '開店', '解店': '開店', '海店': '開店', '買店': '開店',
     '快調': '開店', '快店': '開店', '階店': '開店', '会店': '開店',
     '改店': '開店', '怪店': '開店', '貝店': '開店', '甲店': '開店',
-    '閉店': '開店', 'カイテン': '開店', 'かいてん': '開店'
+    '閉店': '開店', 'カイテン': '開店', 'かいてん': '開店',
+    // 各部署報告の誤認識
+    '各部所': '各部署', '各箇所': '各部署', '各部しょ': '各部署', 
+    '各部署': '各部署', 'かくぶしょ': '各部署', 'カクブショ': '各部署',
+    '全部署': '各部署', '全部所': '各部署',
+    '報告せよ': '状態を報告せよ', '報告しろ': '状態を報告せよ',
+    '状態を報告': '状態を報告せよ', '状況を報告': '状態を報告せよ'
 };
 
 const LC = {
@@ -1653,14 +1646,19 @@ const LC = {
         }
         const t = String(corrected).normalize('NFKC').replace(/[\s、。,.!！?？「」・]/g, '');
 
+        // idle: システム起動
         if (this.phase === 'idle' && /システム起動|起動|スタート|始め|はじめ|発進準備/.test(t)) {
             this.arm();
             return;
         }
+        
+        // ready: 報告要求（「報告」単体でも反応するように緩和）
         if (this.phase === 'ready' && /各部署|全部署|状態|報告|状況|確認|ステータス/.test(t)) {
             this.reportAll();
             return;
         }
+        
+        // ready(不足あり): 部署名 or 総称
         if (this.phase === 'ready' && this.reportedOnce) {
             const keys = this.detectDeptKeys(t);
             const isSupplyCommand = /補給|ほきゅう|ホキュー|補充|ほじゅう|ホジュウ|満タン|フル/.test(t);
@@ -1681,11 +1679,14 @@ const LC = {
                 }
             }
         }
+        
+        // done: 開店
         if (this.phase === 'done' && /開店|オープン|営業開始|受付開始|スタート|発進|着丼|出撃/.test(t)) {
             this.openShop();
             return;
         }
 
+        // ヒント表示
         if (this.phase === 'idle') this.setStatus('音声入力待機中...', '「システム起動」と話しかけてください');
         else if (this.phase === 'ready') {
             if (!this.reportedOnce) this.setStatus('在庫状態: 未確認', '「各部署、状態を報告せよ」と話しかけてください');
@@ -1720,10 +1721,8 @@ const LC = {
         $('lc-main-btn').disabled = true;
         $('lc-main-btn').textContent = '...起動中...';
 
-        // 大げさなSE
         sound.playBootSequence();
 
-        // レーダー高速回転＋画面フラッシュ
         const radar = $('lc-radar');
         radar.classList.add('booting');
         const flash = $('lc-flash');
@@ -1733,7 +1732,6 @@ const LC = {
         this.consoleLog('メインシステム、スタートアップ...', 'ok');
         this.setStatus('メインシステム、起動中...', 'CORE SYSTEM BOOTING');
 
-        // 管制室の掛け声（段階的に）
         setTimeout(() => speakReport('メインシステム、スタートアップ。全系統、正常'), 100);
         setTimeout(() => {
             this.setStatus('メインエンジン、アイドリング中...', 'IGNITION SEQUENCE');
@@ -1764,12 +1762,12 @@ const LC = {
 
             this.setStatus('全システム、スタンバイ', '「各部署、状態を報告せよ」と話しかけてください');
             this.consoleLog('全システム、スタンバイ完了。在庫状態は未確認。', 'ok');
-            // 管制室あるあるの掛け声
             setTimeout(() => {
                 sound.playChannelOpen();
                 setTimeout(() => speakReport('全システム、スタンバイ。各部署、応答願います。こちら管制室'), 250);
             }, 100);
-            setTimeout(() => this.startListening(), 2000);
+            // 読み上げが終わるのを待ってからマイクを起動するよう延長
+            setTimeout(() => this.startListening(), 3500);
         }, 2600);
     },
 
@@ -1787,7 +1785,6 @@ const LC = {
 
         this.discoveredMissing = [];
         let allOk = true;
-        // 最初の読み上げを待つ
         await new Promise(r => setTimeout(r, 1600));
 
         for (let i = 0; i < this.DEPTS.length; i++) {
