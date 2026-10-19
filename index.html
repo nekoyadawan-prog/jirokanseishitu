@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoboJiro AI v4 - 全自動二郎系ロボ盛り付けシミュレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP','Orbitron',sans-serif; background:#080b10; color:#e2e8f0; overflow-x:hidden; }
+        .font-orbitron { font-family:'Orbitron',sans-serif; }
+        .neon-text-yellow { text-shadow:0 0 5px #ffd700,0 0 10px #ffd700,0 0 20px #ffaa00; }
+        .neon-border-cyan { box-shadow:0 0 10px rgba(0,243,255,.4), inset 0 0 10px rgba(0,243,255,.2); }
+        .neon-border-yellow { box-shadow:0 0 10px rgba(255,215,0,.4), inset 0 0 10px rgba(255,215,0,.2); }
+        ::-webkit-scrollbar { width:6px; }
+        ::-webkit-scrollbar-track { background:#0f172a; }
+        ::-webkit-scrollbar-thumb { background:#00f3ff; border-radius:3px; }
+        .cyber-btn { background:linear-gradient(135deg,rgba(15,23,42,.9),rgba(30,41,59,.9)); border:1px solid #334155; transition:all .2s ease; }
+        .cyber-btn:hover { border-color:#00f3ff; box-shadow:0 0 12px rgba(0,243,255,.5); transform:translateY(-1px); }
+        .cyber-btn.active { background:linear-gradient(135deg,#0284c7,#0f766e); border-color:#38bdf8; box-shadow:0 0 15px rgba(56,189,248,.6); color:#fff; }
+        .cyber-btn:focus-visible, input:focus-visible, button:focus-visible { outline:2px solid #facc15; outline-offset:2px; }
+        .scanline { position:relative; }
+        .scanline::after { content:" "; display:block; position:absolute; inset:0; background:linear-gradient(rgba(18,16,16,0) 50%,rgba(0,0,0,.25) 50%); background-size:100% 4px; z-index:10; pointer-events:none; opacity:.35; }
+        .cyber-panel { background:rgba(15,23,42,.85); backdrop-filter:blur(8px); border:1px solid rgba(56,189,248,.3); }
+        .locked { opacity:.55; pointer-events:none; }
+        .ticket-card { background:linear-gradient(135deg,#fef3c7,#fde68a); color:#422006; border:2px dashed #b45309; }
+        @media (prefers-reduced-motion: reduce) { .animate-bounce,.animate-ping,.animate-pulse { animation:none !important; } }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00f3ff; }
+
+        /* ===== ヤマト式発信前確認モード ===== */
+        #launch-check-overlay {
+            position: fixed; inset: 0; z-index: 100;
+            background: radial-gradient(ellipse at center, #0a1628 0%, #020408 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Orbitron', 'Noto Sans JP', sans-serif;
+            transition: opacity .6s ease; padding: 20px; overflow-y: auto;
+        }
+        #launch-check-overlay.fade-out { opacity: 0; pointer-events: none; }
+        .lc-radar {
+            width: 200px; height: 200px; border-radius: 50%;
+            border: 2px solid rgba(0,243,255,.4);
+            position: relative; margin-bottom: 24px; flex-shrink: 0;
+            box-shadow: 0 0 30px rgba(0,243,255,.3), inset 0 0 30px rgba(0,243,255,.15);
+            transition: box-shadow .3s;
+        }
+        .lc-radar::before { content: ""; position: absolute; inset: 20px; border-radius: 50%; border: 1px solid rgba(0,243,255,.2); }
+        .lc-radar::after  { content: ""; position: absolute; inset: 55px; border-radius: 50%; border: 1px solid rgba(0,243,255,.2); }
+        .lc-sweep {
+            position: absolute; inset: 0; border-radius: 50%;
+            background: conic-gradient(from 0deg, transparent 0deg, rgba(0,243,255,.35) 40deg, transparent 80deg);
+            animation: lc-spin 2.5s linear infinite;
+        }
+        @keyframes lc-spin { to { transform: rotate(360deg); } }
+        /* 起動中はレーダーが高速回転＋強発光 */
+        .lc-radar.booting { box-shadow: 0 0 60px rgba(0,243,255,.9), inset 0 0 60px rgba(0,243,255,.6); }
+        .lc-radar.booting .lc-sweep { animation: lc-spin .3s linear infinite; background: conic-gradient(from 0deg, transparent 0deg, rgba(0,243,255,.9) 60deg, transparent 100deg); }
+
+        .lc-title { font-size: 12px; letter-spacing: .35em; color: #00f3ff; margin-bottom: 8px; text-shadow: 0 0 10px rgba(0,243,255,.7); text-align: center; }
+        .lc-status {
+            font-size: 22px; font-weight: 900; color: #fde047; margin-bottom: 6px;
+            text-shadow: 0 0 12px rgba(253,224,71,.6); text-align: center; padding: 0 16px;
+        }
+        .lc-sub { font-size: 12px; color: #94a3b8; margin-bottom: 22px; text-align: center; min-height: 18px; }
+        .lc-btn {
+            padding: 14px 40px; font-weight: 900; font-size: 15px; letter-spacing: .1em;
+            background: linear-gradient(135deg, #0f766e, #0284c7);
+            border: 2px solid #38bdf8; border-radius: 10px; color: #fff;
+            box-shadow: 0 0 20px rgba(56,189,248,.5); cursor: pointer;
+            transition: all .2s; font-family: 'Noto Sans JP', sans-serif;
+        }
+        .lc-btn:hover:not(:disabled) { transform: scale(1.04); box-shadow: 0 0 30px rgba(56,189,248,.8); }
+        .lc-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .lc-btn.mic-listening { background: linear-gradient(135deg,#b91c1c,#dc2626); border-color:#f87171; animation: lc-pulse 1s infinite; }
+        .lc-btn.supply-mode { background: linear-gradient(135deg,#b45309,#d97706); border-color:#fbbf24; }
+        .lc-btn.open-mode { background: linear-gradient(135deg,#16a34a,#22c55e); border-color:#4ade80; animation: lc-pulse 1.2s infinite; }
+        @keyframes lc-pulse { 0%,100%{box-shadow:0 0 20px rgba(220,38,38,.6);} 50%{box-shadow:0 0 40px rgba(220,38,38,1);} }
+
+        #lc-dept-list { margin: 18px 0; width: min(440px, 88vw); display: flex; flex-direction: column; gap: 8px; }
+        .lc-dept {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; border-radius: 8px; font-family: 'Noto Sans JP', monospace;
+            background: rgba(15,23,42,.8); border: 1px solid #334155;
+            font-size: 13px; opacity: 0; transform: translateX(-12px);
+            transition: all .35s ease; position: relative; overflow: hidden;
+        }
+        .lc-dept.show { opacity: 1; transform: translateX(0); }
+        /* 報告時のスキャン発光エフェクト */
+        .lc-dept.reporting {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 15px rgba(56,189,248,.6), inset 0 0 15px rgba(56,189,248,.2);
+            animation: lc-dept-scan 0.8s ease-out;
+        }
+        .lc-dept.reporting::before {
+            content: ""; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(56,189,248,.6), transparent);
+            transform: translateX(-100%);
+            animation: lc-scan-line 0.8s linear;
+        }
+        @keyframes lc-dept-scan {
+            0% { transform: translateX(-12px) scale(1); }
+            50% { transform: translateX(0) scale(1.02); }
+            100% { transform: translateX(0) scale(1); }
+        }
+        @keyframes lc-scan-line {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .lc-dept .dept-name { color: #cbd5e1; font-weight: 700; }
+        .lc-dept .dept-status { font-family: 'Orbitron', sans-serif; font-weight: 900; }
+        .lc-dept.ok { border-color: #10b981; }
+        .lc-dept.ok .dept-status { color: #34d399; text-shadow: 0 0 8px rgba(52,211,153,.7); }
+        .lc-dept.ng { border-color: #ef4444; }
+        .lc-dept.ng .dept-status { color: #f87171; text-shadow: 0 0 8px rgba(248,113,113,.7); }
+        .lc-dept.checking .dept-status { color: #fbbf24; }
+        .lc-dept.refilled { animation: lc-refill-anim .7s ease; }
+        @keyframes lc-refill-anim {
+            0% { background: rgba(251,191,36,.4); transform: scale(1.05); }
+            100% { background: rgba(15,23,42,.8); transform: scale(1); }
+        }
+        .lc-dept.hidden-status .dept-status { color: #64748b; }
+
+        #lc-console {
+            width: min(440px, 88vw); height: 90px; overflow-y: auto; font-family: monospace;
+            font-size: 11px; color: #64748b; background: rgba(0,0,0,.4); border: 1px solid #1e293b;
+            border-radius: 8px; padding: 8px 12px; margin-top: 14px;
+        }
+        #lc-console p { margin: 0; line-height: 1.5; }
+        #lc-console .ok { color: #34d399; }
+        #lc-console .ng { color: #f87171; }
+        #lc-console .warn { color: #fbbf24; }
+
+        .lc-flash { position: fixed; inset: 0; background: #00f3ff; opacity: 0; pointer-events: none; z-index: 101; }
+        .lc-flash.fire { animation: lc-flash-anim .5s ease; }
+        .lc-flash.green { background: #22c55e; }
+        @keyframes lc-flash-anim { 0%{opacity:.6;} 100%{opacity:0;} }
+
+        /* ===== 客襲来モード ===== */
+        #customers-panel {
+            position: absolute; top: 8px; right: 8px; z-index: 25;
+            display: flex; flex-direction: column; gap: 6px;
+            max-width: 240px; pointer-events: none;
+        }
+        .cust-card {
+            background: rgba(15,23,42,.92); backdrop-filter: blur(6px);
+            border: 1px solid #334155; border-radius: 10px;
+            padding: 6px 10px; font-family: 'Noto Sans JP', sans-serif;
+            opacity: 0; transform: translateX(30px);
+            transition: all .4s cubic-bezier(.2,.8,.2,1);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .cust-card.show { opacity: 1; transform: translateX(0); }
+        .cust-card.active { border-color: #facc15; box-shadow: 0 0 14px rgba(250,204,21,.6); }
+        .cust-card.served { border-color: #10b981; opacity: .65; }
+        .cust-card.served .cust-call { text-decoration: line-through; color: #64748b; }
+        .cust-card.failed { border-color: #ef4444; opacity: .65; }
+        .cust-face {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg,#0ea5e9,#0284c7);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0;
+        }
+        .cust-card.served .cust-face { background: linear-gradient(135deg,#10b981,#047857); }
+        .cust-card.failed .cust-face { background: linear-gradient(135deg,#ef4444,#b91c1c); }
+        .cust-info { flex: 1; min-width: 0; }
+        .cust-name { font-size: 10px; color: #94a3b8; font-weight: 700; }
+        .cust-call {
+            font-size: 11px; font-weight: 900; color: #fde047;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cust-status { font-size: 9px; font-family: 'Orbitron', sans-serif; color: #64748b; }
+        .cust-card.served .cust-status { color: #34d399; }
+        .cust-card.failed .cust-status { color: #f87171; }
+
+        #rush-timer {
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 26;
+            background: rgba(0,0,0,.85); border: 2px solid #facc15; border-radius: 10px;
+            padding: 4px 16px; font-family: 'Orbitron', sans-serif; display: none;
+        }
+        #rush-timer.show { display: block; }
+        #rush-timer.danger { border-color: #ef4444; animation: rush-pulse .6s infinite; }
+        @keyframes rush-pulse { 0%,100%{box-shadow:0 0 12px rgba(239,68,68,.6);} 50%{box-shadow:0 0 24px rgba(239,68,68,1);} }
+        .rush-time { font-size: 22px; font-weight: 900; color: #fde047; }
+        #rush-timer.danger .rush-time { color: #f87171; }
+        .rush-label { font-size: 9px; color: #94a3b8; letter-spacing: .2em; text-align: center; }
+
+        #rush-result-banner {
+            position: absolute; inset: 0; z-index: 40; display: none;
+            background: rgba(2,6,23,.9); backdrop-filter: blur(4px);
+            flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; text-align: center;
+        }
+        #rush-result-banner.show { display: flex; }
+        .rush-result-title {
+            font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900;
+            letter-spacing: .1em; margin-bottom: 8px;
+        }
+        .rush-result-title.success { color: #34d399; text-shadow: 0 0 20px rgba(52,211,153,.8); }
+        .rush-result-title.fail { color: #f87171; text-shadow: 0 0 20px rgba(248,113,113,.8); }
+        .rush-result-sub { color: #cbd5e1; font-size: 14px; margin-bottom: 20px; }
+        .rush-result-stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px;
+            background: rgba(15,23,42,.9); border: 1px solid #334155; border-radius: 10px;
+            padding: 14px 20px; font-family: monospace; font-size: 12px; margin-bottom: 20px;
+        }
+        .rush-result-stats div:nth-child(odd) { color: #94a3b8; }
+        .rush-result-stats div:nth-child(even) { color: #fde047; font-weight: 700; text-align: right; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+<!-- ヤマト式発信前確認オーバーレイ -->
+<div id="launch-check-overlay" aria-label="発信前確認モード">
+    <div class="lc-title">BATTLESHIP JIRO // LAUNCH SEQUENCE</div>
+    <div class="lc-radar" id="lc-radar"><div class="lc-sweep"></div></div>
+    <div id="lc-status" class="lc-status">音声入力待機中...</div>
+    <div id="lc-sub" class="lc-sub">「システム起動」と話しかけてください</div>
+    <div id="lc-dept-list"></div>
+    <button id="lc-main-btn" class="lc-btn">🎤 システム起動</button>
+    <div id="lc-console"></div>
+</div>
+<div class="lc-flash" id="lc-flash"></div>
+
+<header class="border-b border-cyan-900/50 bg-slate-900/80 px-4 py-3 flex justify-between items-center z-20 shadow-lg gap-2">
+    <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-robot text-2xl text-cyan-400 animate-pulse"></i>
+        <div>
+            <h1 class="text-xl md:text-2xl font-black tracking-wider text-yellow-400 font-orbitron neon-text-yellow flex items-center gap-2">
+                ROBO-JIRO <span class="text-xs bg-cyan-900 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500 font-mono">v4.0 AI</span>
+            </h1>
+            <p class="text-xs text-slate-400 hidden sm:block">超高速全自動二郎系盛り付けシステム // CYBER-JIRO SYSTEM</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2 text-xs font-mono">
+        <div class="hidden md:flex flex-col items-end mr-2">
+            <span class="text-slate-400">累計着丼</span>
+            <span id="hdr-total" class="text-cyan-400 font-bold font-orbitron">0 杯</span>
+        </div>
+        <button id="voice-toggle-btn" class="cyber-btn px-3 py-1.5 rounded-lg text-yellow-300 border border-yellow-500/50 flex items-center gap-2" aria-pressed="true">
+            <i id="voice-icon" class="fa-solid fa-comment-dots"></i><span id="voice-status">店主: ON</span>
+        </button>
+        <button id="audio-toggle-btn" class="cyber-btn px-3 py-1.5 rounded-lg text-cyan-300 border border-cyan-500/50 flex items-center gap-2" aria-pressed="true">
+            <i id="audio-icon" class="fa-solid fa-volume-high text-cyan-400"></i><span id="audio-status">SOUND: ON</span>
+        </button>
+    </div>
+</header>
+
+<main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 md:p-5 max-w-7xl mx-auto w-full">
+
+    <!-- LEFT: stage -->
+    <section class="lg:col-span-7 flex flex-col gap-3">
+        <div class="relative w-full rounded-xl overflow-hidden border border-cyan-500/40 neon-border-cyan shadow-2xl bg-black scanline" style="aspect-ratio:16/10">
+            <canvas id="ramen-canvas" class="w-full h-full block bg-slate-950" aria-label="ロボアームがラーメンを盛り付けるアニメーション"></canvas>
+
+            <div id="customers-panel"></div>
+
+            <div id="rush-timer">
+                <div class="rush-time"><span id="rush-time-val">30.0</span>s</div>
+                <div class="rush-label">RUSH LIMIT</div>
+            </div>
+
+            <div class="absolute top-3 left-3 pointer-events-none flex flex-col gap-1 text-xs font-mono">
+                <div class="bg-slate-900/80 px-2 py-1 rounded border border-cyan-500/30 text-cyan-300 backdrop-blur-sm flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span id="hud-status-text">STATUS: STANDBY</span>
+                </div>
+                <div id="hud-telemetry" class="bg-slate-900/80 p-2 rounded border border-slate-700/50 text-slate-300 backdrop-blur-sm hidden flex-col gap-1">
+                    <div>SERVO TEMP: <span id="hud-temp" class="text-yellow-400 font-orbitron">38.0°C</span></div>
+                    <div>LOAD: <span id="hud-load" class="text-cyan-400 font-orbitron">12%</span></div>
+                    <div>TIP SPEED: <span id="hud-speed" class="text-emerald-400 font-orbitron">0.0 m/s</span></div>
+                </div>
+            </div>
+
+            <div class="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none px-3">
+                <div class="bg-black/80 backdrop-blur-md border-2 border-yellow-400 text-yellow-300 px-5 py-2 rounded-xl shadow-2xl text-center neon-border-yellow max-w-full">
+                    <div class="text-[10px] text-yellow-400 font-mono tracking-widest uppercase">AI SHOPMASTER</div>
+                    <div id="banner-text" class="text-lg md:text-2xl font-black neon-text-yellow">「ニンニク入れますか？」</div>
+                </div>
+            </div>
+
+            <div id="result-actions" class="absolute right-3 z-20 hidden flex-col gap-2" style="top:96px">
+                <button id="details-btn" class="py-2.5 px-4 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black rounded-xl shadow-lg text-sm border border-cyan-300"><i class="fa-solid fa-chart-simple mr-1"></i> 詳細を見る</button>
+                <button id="view-reorder-btn" class="py-2 px-4 cyber-btn rounded-xl text-xs font-bold text-yellow-300"><i class="fa-solid fa-rotate-right mr-1"></i> もう一杯コール</button>
+            </div>
+
+            <div id="completion-modal" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 hidden z-30" role="dialog" aria-modal="true" aria-label="盛り付け完了">
+                <div class="cyber-panel p-5 rounded-2xl max-w-md w-full border-2 border-cyan-400 text-center shadow-2xl space-y-3 neon-border-cyan">
+                    <div class="text-emerald-400 font-orbitron text-sm tracking-widest uppercase flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-circle-check"></i> ASSEMBLY COMPLETE
+                        <span id="record-badge" class="hidden bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">NEW RECORD</span>
+                    </div>
+                    <h2 id="result-title" class="text-2xl font-black text-yellow-400 neon-text-yellow">着丼！</h2>
+                    <div id="result-call" class="text-xs text-cyan-300 font-mono"></div>
+                    <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-left font-mono text-xs bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+                        <div class="text-slate-400">盛り付け時間:</div><div id="stat-time" class="text-cyan-300 font-orbitron text-right font-bold"></div>
+                        <div class="text-slate-400">総重量 (推定):</div><div id="stat-weight" class="text-yellow-300 font-orbitron text-right font-bold"></div>
+                        <div class="text-slate-400">カロリー (推定):</div><div id="stat-calories" class="text-red-400 font-orbitron text-right font-bold"></div>
+                        <div class="text-slate-400">ニンニクパワー:</div><div id="stat-garlic" class="text-emerald-400 font-orbitron text-right font-bold"></div>
+                        <div class="text-slate-400">二郎レベル:</div><div id="stat-rank" class="text-amber-300 font-bold text-right"></div>
+                        <div class="text-slate-400">お会計:</div><div id="stat-price" class="text-slate-100 font-orbitron text-right font-bold"></div>
+                    </div>
+                    <div class="text-[10px] text-slate-500">※数値はすべてシミュレーション上の推定値です</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="close-modal-btn" class="col-span-2 cyber-btn py-2.5 rounded-xl text-sm font-bold text-emerald-300"><i class="fa-solid fa-eye mr-1"></i> 盛り付けを眺める</button>
+                        <button id="copy-btn" class="cyber-btn py-2.5 rounded-xl text-sm font-bold text-cyan-200"><i class="fa-solid fa-copy mr-1"></i> 結果をコピー</button>
+                        <button id="reorder-btn" class="py-2.5 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black rounded-xl shadow-lg text-sm"><i class="fa-solid fa-rotate-right mr-1"></i> もう一杯コール！</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="rush-result-banner" role="dialog" aria-modal="true">
+                <div id="rush-result-title" class="rush-result-title success">RUSH CLEAR!</div>
+                <div id="rush-result-sub" class="rush-result-sub">3名全員に提供完了！</div>
+                <div id="rush-result-stats" class="rush-result-stats"></div>
+                <button id="rush-restart-btn" class="lc-btn">もう一度ラッシュ！</button>
+            </div>
+        </div>
+
+        <div class="cyber-panel p-3 rounded-xl border border-slate-800 text-xs font-mono h-28 flex flex-col">
+            <div class="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-1 mb-1">
+                <span><i class="fa-solid fa-terminal text-cyan-400 mr-1"></i> AI SYSTEM LOG</span>
+                <span id="log-timestamp" class="text-slate-500">READY</span>
+            </div>
+            <div id="console-log" class="flex-1 overflow-y-auto space-y-1 text-slate-300 pr-1" aria-live="polite"></div>
+        </div>
+
+        <div class="cyber-panel p-3 rounded-xl border border-slate-800 text-xs">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-slate-300 font-bold"><i class="fa-solid fa-clock-rotate-left text-cyan-400 mr-1"></i> 注文履歴 (最新5件)</span>
+                <span class="text-slate-500 font-mono">最速: <span id="best-time" class="text-emerald-400">--</span></span>
+                <button id="clear-history" class="text-slate-500 hover:text-red-400 underline">消去</button>
+            </div>
+            <ul id="history-list" class="space-y-1 font-mono"></ul>
+        </div>
+    </section>
+
+    <!-- RIGHT: controls -->
+    <section class="lg:col-span-5 flex flex-col cyber-panel p-4 md:p-5 rounded-xl border border-slate-700/80 shadow-xl gap-4 lg:max-h-[calc(100vh-100px)] overflow-hidden">
+        <div id="controls" class="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <div>
+                <div class="flex justify-between items-end border-b border-cyan-800/50 pb-2 mb-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-yellow-400 flex items-center gap-2"><i class="fa-solid fa-ticket text-cyan-400"></i> 食券機</h2>
+                        <p class="text-xs text-slate-400">まずは食券を買いましょう</p>
+                    </div>
+                </div>
+                <div id="ticket-grid" class="grid grid-cols-3 gap-2"></div>
+                <div id="extras-grid" class="grid grid-cols-2 gap-2 mt-2"></div>
+            </div>
+
+            <div>
+                <div class="flex justify-between items-end border-b border-cyan-800/50 pb-2 mb-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-yellow-400 flex items-center gap-2"><i class="fa-solid fa-sliders text-cyan-400"></i> JIRO CALL (コール)</h2>
+                        <p class="text-xs text-slate-400">ボタン、または声・文字でコールできます</p>
+                    </div>
+                </div>
+                <div id="groups" class="space-y-3"></div>
+            </div>
+
+            <div class="space-y-2">
+                <div class="text-xs text-slate-400">コール入力 (例: ヤサイマシマシ ニンニク アブラ カラメ 麺半分)</div>
+                <div class="flex gap-2">
+                    <input id="call-input" type="text" autocomplete="off" placeholder="ヤサイマシマシニンニクアブラ" class="flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600">
+                    <button id="call-apply" class="cyber-btn px-3 rounded-lg text-xs font-bold text-cyan-200">反映</button>
+                    <button id="mic-btn" class="cyber-btn px-3 rounded-lg text-xs font-bold text-yellow-300" title="音声でコール"><i class="fa-solid fa-microphone"></i></button>
+                </div>
+            </div>
+
+            <div>
+                <div class="text-xs text-slate-400 mb-2">クイックプリセット</div>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button data-preset="plain" class="cyber-btn py-1.5 rounded-lg text-[11px] font-bold">そのまま</button>
+                    <button data-preset="mashi" class="cyber-btn py-1.5 rounded-lg text-[11px] font-bold text-cyan-300">全マシ</button>
+                    <button data-preset="mashimashi" class="cyber-btn py-1.5 rounded-lg text-[11px] font-bold text-amber-300">🔥全マシマシ</button>
+                    <button data-preset="last" class="cyber-btn py-1.5 rounded-lg text-[11px] font-bold">前回</button>
+                    <button data-preset="random" class="cyber-btn py-1.5 rounded-lg text-[11px] font-bold text-purple-300">🎲</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="text-xs text-slate-400 mb-2">ロボアーム速度</div>
+                <div id="speed-grid" class="grid grid-cols-3 gap-2"></div>
+            </div>
+        </div>
+
+        <div class="mt-auto space-y-2 pt-2 border-t border-slate-700/50">
+            <div class="flex justify-between items-center text-xs font-mono bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2">
+                <span class="text-slate-400">注文: <span id="sum-ticket" class="text-yellow-300"></span> / <span id="sum-call" class="text-cyan-300"></span></span>
+                <span id="sum-price" class="text-slate-100 font-orbitron font-bold"></span>
+            </div>
+            <button id="start-btn" class="w-full py-4 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black rounded-xl shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3 text-lg border border-cyan-300">
+                <i class="fa-solid fa-bolt text-xl"></i><span>注文確定 (ロボアーム起動)</span>
+            </button>
+            <div class="text-center text-[10px] text-slate-500">Enterキーでも注文できます</div>
+        </div>
+    </section>
+</main>
+
+<script>
+'use strict';
+/* ============================================================
+ * Utilities
+ * ============================================================ */
+const $ = id => document.getElementById(id);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const easeInOut = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Math.round(n).toLocaleString('ja-JP');
+
+/* ============================================================
+ * Persistence
+ * ============================================================ */
+const STORE_KEY = 'robojiro.v4';
+let store = { history: [], best: {}, total: 0 };
+try { store = Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) {}
+function saveStore() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} }
+
+/* ============================================================
+ * Sound engine
+ * ============================================================ */
+class SoundEngine {
+    constructor() { this.ctx = null; this.enabled = true; }
+    init() {
+        if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; this.ctx = new AC(); }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+    }
+    _osc(type, f0, f1, dur, vol) {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+            g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(t + dur);
+        } catch (e) {}
+    }
+    playServo(dur = .15, pitch = 800) { this._osc('sawtooth', pitch, pitch * 1.5, dur, .06); }
+    playClank() { this._osc('square', 150, 40, .12, .16); }
+    playSplash() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        try {
+            const n = Math.floor(this.ctx.sampleRate * .15), buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+            const src = this.ctx.createBufferSource(); src.buffer = buf;
+            const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1000;
+            const g = this.ctx.createGain(); g.gain.setValueAtTime(.14, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(.01, this.ctx.currentTime + .15);
+            src.connect(f); f.connect(g); g.connect(this.ctx.destination); src.start();
+        } catch (e) {}
+    }
+    playChime() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        [523.25, 659.25, 783.99, 1046.5].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + i * .08;
+                o.type = 'sine'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.11, st); g.gain.exponentialRampToValueAtTime(.001, st + .4);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .4);
+            } catch (e) {}
+        });
+    }
+    playAlarm() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        [880, 660].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + i * .18;
+                o.type = 'sawtooth'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.09, st); g.gain.exponentialRampToValueAtTime(.001, st + .16);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .16);
+            } catch (e) {}
+        });
+    }
+    playRefill() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'triangle'; o.frequency.setValueAtTime(300, t); o.frequency.exponentialRampToValueAtTime(1500, t + .35);
+            g.gain.setValueAtTime(.12, t); g.gain.exponentialRampToValueAtTime(.001, t + .4);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(t + .4);
+        } catch (e) {}
+    }
+    playRushStart() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        [392, 523.25, 659.25, 783.99].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + i * .07;
+                o.type = 'sawtooth'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.1, st); g.gain.exponentialRampToValueAtTime(.001, st + .3);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .3);
+            } catch (e) {}
+        });
+    }
+    playVictory() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + i * .1;
+                o.type = 'triangle'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.13, st); g.gain.exponentialRampToValueAtTime(.001, st + .5);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .5);
+            } catch (e) {}
+        });
+    }
+    playDefeat() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        [392, 349.23, 293.66, 246.94].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + i * .18;
+                o.type = 'sawtooth'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.1, st); g.gain.exponentialRampToValueAtTime(.001, st + .4);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .4);
+            } catch (e) {}
+        });
+    }
+    playOpen() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        // 太鼓の音（ドン）
+        try {
+            const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(40, t + .4);
+            g.gain.setValueAtTime(.3, t); g.gain.exponentialRampToValueAtTime(.001, t + .6);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(t + .6);
+        } catch (e) {}
+        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((fr, i) => {
+            try {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = this.ctx.currentTime + .1 + i * .1;
+                o.type = 'triangle'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.12, st); g.gain.exponentialRampToValueAtTime(.001, st + .7);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .7);
+            } catch (e) {}
+        });
+    }
+    playReportBeep() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            [1200, 1600].forEach((fr, i) => {
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain(), st = t + i * .07;
+                o.type = 'square'; o.frequency.value = fr;
+                g.gain.setValueAtTime(.06, st); g.gain.exponentialRampToValueAtTime(.001, st + .05);
+                o.connect(g); g.connect(this.ctx.destination); o.start(st); o.stop(st + .05);
+            });
+        } catch (e) {}
+    }
+    playChannelOpen() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        try {
+            const t = this.ctx.currentTime;
+            const n = Math.floor(this.ctx.sampleRate * .1), buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+            const src = this.ctx.createBufferSource(); src.buffer = buf;
+            const f = this.ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2000;
+            const g = this.ctx.createGain(); g.gain.value = .05;
+            src.connect(f); f.connect(g); g.connect(this.ctx.destination); src.start();
+            const o = this.ctx.createOscillator(), g2 = this.ctx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(2400, t + .1); o.frequency.exponentialRampToValueAtTime(3000, t + .18);
+            g2.gain.setValueAtTime(.08, t + .1); g2.gain.exponentialRampToValueAtTime(.001, t + .25);
+            o.connect(g2); g2.connect(this.ctx.destination); o.start(t + .1); o.stop(t + .25);
+        } catch (e) {}
+    }
+
+    /* ===== 大げさなシステム起動SE ===== */
+    playBootSequence() {
+        if (!this.enabled) return; this.init(); if (!this.ctx) return;
+        const ctx = this.ctx;
+        const t0 = ctx.currentTime;
+        try {
+            // 1. 重低音ブート（サブベースのスイープアップ）
+            const sub = ctx.createOscillator(), subG = ctx.createGain();
+            sub.type = 'sine';
+            sub.frequency.setValueAtTime(30, t0);
+            sub.frequency.exponentialRampToValueAtTime(90, t0 + 0.8);
+            sub.frequency.exponentialRampToValueAtTime(60, t0 + 2.2);
+            subG.gain.setValueAtTime(0, t0);
+            subG.gain.linearRampToValueAtTime(0.35, t0 + 0.1);
+            subG.gain.linearRampToValueAtTime(0.28, t0 + 2.0);
+            subG.gain.exponentialRampToValueAtTime(0.001, t0 + 2.4);
+            sub.connect(subG); subG.connect(ctx.destination);
+            sub.start(t0); sub.stop(t0 + 2.4);
+
+            // 2. 空気が抜けるシュゥゥゥ（ホワイトノイズ＋ローパスフィルタのスイープ）
+            const nLen = Math.floor(ctx.sampleRate * 1.8);
+            const nBuf = ctx.createBuffer(1, nLen, ctx.sampleRate);
+            const nData = nBuf.getChannelData(0);
+            for (let i = 0; i < nLen; i++) nData[i] = Math.random() * 2 - 1;
+            const noise = ctx.createBufferSource(); noise.buffer = nBuf;
+            const noiseF = ctx.createBiquadFilter(); noiseF.type = 'lowpass';
+            noiseF.frequency.setValueAtTime(200, t0);
+            noiseF.frequency.exponentialRampToValueAtTime(4000, t0 + 1.6);
+            const noiseG = ctx.createGain();
+            noiseG.gain.setValueAtTime(0, t0);
+            noiseG.gain.linearRampToValueAtTime(0.12, t0 + 0.2);
+            noiseG.gain.linearRampToValueAtTime(0.08, t0 + 1.4);
+            noiseG.gain.exponentialRampToValueAtTime(0.001, t0 + 1.8);
+            noise.connect(noiseF); noiseF.connect(noiseG); noiseG.connect(ctx.destination);
+            noise.start(t0); noise.stop(t0 + 1.8);
+
+            // 3. コンピュータ起動風の高速アルペジオ（ピロピロピロ…）
+            const arpNotes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093, 2637];
+            arpNotes.forEach((fr, i) => {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                const st = t0 + 0.3 + i * 0.06;
+                o.type = 'square'; o.frequency.value = fr;
+                g.gain.setValueAtTime(0.03, st);
+                g.gain.exponentialRampToValueAtTime(0.001, st + 0.08);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(st); o.stop(st + 0.08);
+            });
+
+            // 4. 管制室のざわめき風（低いノイズをうっすら）
+            const nLen2 = Math.floor(ctx.sampleRate * 2.0);
+            const nBuf2 = ctx.createBuffer(1, nLen2, ctx.sampleRate);
+            const nData2 = nBuf2.getChannelData(0);
+            for (let i = 0; i < nLen2; i++) nData2[i] = (Math.random() * 2 - 1) * 0.3;
+            const noise2 = ctx.createBufferSource(); noise2.buffer = nBuf2;
+            const noiseF2 = ctx.createBiquadFilter(); noiseF2.type = 'bandpass';
+            noiseF2.frequency.value = 800; noiseF2.Q.value = 0.5;
+            const noiseG2 = ctx.createGain();
+            noiseG2.gain.setValueAtTime(0, t0);
+            noiseG2.gain.linearRampToValueAtTime(0.03, t0 + 0.5);
+            noiseG2.gain.linearRampToValueAtTime(0.02, t0 + 1.8);
+            noiseG2.gain.exponentialRampToValueAtTime(0.001, t0 + 2.2);
+            noise2.connect(noiseF2); noiseF2.connect(noiseG2); noiseG2.connect(ctx.destination);
+            noise2.start(t0); noise2.stop(t0 + 2.2);
+
+            // 5. 起動完了の「チャイム」（キンコーン）
+            [1046.5, 1318.5, 1567.98].forEach((fr, i) => {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                const st = t0 + 2.0 + i * 0.08;
+                o.type = 'sine'; o.frequency.value = fr;
+                g.gain.setValueAtTime(0.08, st);
+                g.gain.exponentialRampToValueAtTime(0.001, st + 0.5);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(st); o.stop(st + 0.5);
+            });
+        } catch (e) {}
+    }
+}
+const sound = new SoundEngine();
+let voiceEnabled = true;
+
+/**
+ * かっこいい報告用の読み上げ
+ * - rate: 少し遅め、pitch: 低め（重厚な男性声風）、volume: 大きめ
+ */
+function speakReport(text) {
+    if (!voiceEnabled || !('speechSynthesis' in window)) return;
+    try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ja-JP';
+        u.rate = 0.95;
+        u.pitch = 0.45;
+        u.volume = 1.0;
+        const voices = speechSynthesis.getVoices();
+        const ja = voices.find(v => v.lang === 'ja-JP' || v.lang.startsWith('ja'));
+        if (ja) u.voice = ja;
+        speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
+function speak(text, forceRate) {
+    if (!voiceEnabled || !('speechSynthesis' in window)) return;
+    try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ja-JP'; u.rate = forceRate || 1.15; u.pitch = .6;
+        speechSynthesis.speak(u);
+    } catch (e) {}
+}
+
+/* ============================================================
+ * Menu / call model
+ * ============================================================ */
+const LV5 = ['なし', '少なめ', '普通', 'マシ', 'マシマシ'];
+const TICKETS = [
+    { name: '小ラーメン',       price: 900,  noodle: 250, chashu: 2 },
+    { name: 'ラーメン',         price: 1000, noodle: 350, chashu: 3 },
+    { name: 'ぶた入りラーメン', price: 1200, noodle: 350, chashu: 4 }
+];
+const EXTRAS = [
+    { key: 'egg',  name: '生卵', price: 50, icon: 'fa-egg' },
+    { key: 'fish', name: '魚粉', price: 50, icon: 'fa-fish' }
+];
+const GROUPS = [
+    { key: 'garlic', name: 'ニンニク', sub: '刻み生',           icon: 'fa-drumstick-bite', color: 'text-yellow-400',  labels: LV5 },
+    { key: 'yasai',  name: 'ヤサイ',   sub: 'モヤシ・キャベツ', icon: 'fa-leaf',           color: 'text-emerald-400', labels: LV5 },
+    { key: 'abura',  name: 'アブラ',   sub: '背脂',             icon: 'fa-droplet',        color: 'text-orange-400',  labels: LV5 },
+    { key: 'karame', name: 'カラメ',   sub: '醤油ダレ',         icon: 'fa-flask',          color: 'text-purple-400',  labels: ['普通', 'カラメ'] },
+    { key: 'men',    name: '麺量',     sub: '',                 icon: 'fa-bowl-rice',      color: 'text-sky-400',     labels: ['麺半分', '普通', '麺増し'] }
+];
+const SPEEDS = [
+    { id: 'slow',   label: 'じっくり', mult: .6 },
+    { id: 'normal', label: '標準',     mult: 1 },
+    { id: 'turbo',  label: '爆速',     mult: 2.5 }
+];
+const CALL_DEFAULTS = { yasai: 2, garlic: 0, abura: 2, karame: 0, men: 1 };
+const DEFAULT_STATE = { ticket: 1, yasai: 3, garlic: 2, abura: 2, karame: 0, men: 1, egg: false, fish: false };
+let state = Object.assign({}, DEFAULT_STATE);
+let speedIdx = 2;
+
+const modWord = l => ['ナシ', '少なめ', '', 'マシ', 'マシマシ'][l];
+function callText(s) {
+    const p = [];
+    [['garlic', 'ニンニク'], ['yasai', 'ヤサイ'], ['abura', 'アブラ']].forEach(([k, n]) => {
+        if (s[k] !== CALL_DEFAULTS[k]) p.push(n + modWord(s[k]));
+    });
+    if (s.karame) p.push('カラメ');
+    if (s.men === 0) p.push('麺半分');
+    if (s.men === 2) p.push('麺増し');
+    return p.length ? p.join(' ') : 'そのまま';
+}
+function priceOf(s) {
+    return TICKETS[s.ticket].price + EXTRAS.reduce((a, e) => a + (s[e.key] ? e.price : 0), 0);
+}
+
+function parseCall(raw) {
+    let t = String(raw).normalize('NFKC')
+        .replace(/辛め|辛目|辛い|辛|濃いめ|濃い目|濃ゆめ|絡め|絡み|絡|唐目|空目|加羅目|からめ|からみ|カラメ|カラミ|ガラメ/g, 'カラメ')
+        .replace(/野菜|八才|八歳/g, 'ヤサイ').replace(/背脂|脂|油/g, 'アブラ').replace(/蒜|大蒜/g, 'ニンニク')
+        .replace(/増し|増/g, 'マシ').replace(/少なめ|少な目|少なく|少ない/g, 'スクナメ')
+        .replace(/抜き|抜|無し|無/g, 'ナシ').replace(/麺/g, 'メン').replace(/半分/g, 'ハンブン')
+        .replace(/大盛り?/g, 'オオモリ').replace(/小盛り?/g, 'ハンブン').replace(/全/g, 'ゼン')
+        .replace(/多め|多目|多い|多く|多く/g, 'オオメ').replace(/控えめ|控え目/g, 'ヒカエメ').replace(/少し/g, 'チョイ').replace(/人肉/g, 'ニンニク')
+        .replace(/[\u3041-\u3096]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
+        .replace(/ー/g, '')
+        .replace(/カラ(?!メ)/g, 'カラメ')
+        .replace(/イレマスカ|オネガイシマス|ハイ/g, '').replace(/[\s、。,.!！?？「」・]/g, '');
+    const res = {}; const found = [];
+    let zl = 2;
+    if (t.includes('ゼンマシマシ')) { zl = 4; res.yasai = res.garlic = res.abura = 4; res.karame = 1; found.push('全マシマシ'); t = t.replace(/ゼンマシマシ/g, ''); }
+    else if (t.includes('ゼンマシ')) { zl = 3; res.yasai = res.garlic = res.abura = 3; res.karame = 1; found.push('全マシ'); t = t.replace(/ゼンマシ/g, ''); }
+
+    const KEY = { 'ヤサイ': 'yasai', 'ニンニク': 'garlic', 'アブラ': 'abura', 'カラメ': 'karame', 'メン': 'men' };
+    const tokens = [];
+    const re = /(ヤサイ|ニンニク|アブラ|カラメ|メン)|(マシマシ|マシ|オオメ|オオモリ|スクナメ|チョイ|ヒカエメ|ハンブン|ハーフ|ナシ|ヌキ)/g;
+    let m;
+    while ((m = re.exec(t))) tokens.push(m[1] ? { type: 'K', word: m[1], k: KEY[m[1]], mod: null } : { type: 'M', word: m[2] });
+    const MEN_ONLY = /^(ハンブン|ハーフ|オオモリ)$/;
+    const near = (i, dir, pred) => {
+        for (let j = i + dir; j >= 0 && j < tokens.length; j += dir) if (tokens[j].type === 'K' && pred(tokens[j])) return tokens[j];
+        return null;
+    };
+    tokens.forEach((tk, i) => {
+        if (tk.type !== 'M') return;
+        const prev = tokens[i - 1];
+        if (/^(ナシ|ヌキ)$/.test(tk.word) && prev && prev.type === 'K' && prev.k === 'karame') { prev.mod = tk.word; return; }
+        let target;
+        if (MEN_ONLY.test(tk.word)) {
+            target = near(i, -1, x => x.k === 'men') || near(i, 1, x => x.k === 'men');
+            if (!target) { target = { type: 'K', word: 'メン', k: 'men', mod: null }; tokens.push(target); }
+        } else {
+            const free = x => x.k !== 'karame' && !x.mod;
+            target = near(i, -1, free) || near(i, 1, free);
+        }
+        if (target) target.mod = tk.word;
+    });
+
+    const level5 = w => /^マシマシ$/.test(w) ? 4 : /^(マシ|オオメ)$/.test(w) ? 3 : /^(スクナメ|チョイ|ヒカエメ)$/.test(w) ? 1 : /^(ナシ|ヌキ)$/.test(w) ? 0 : 2;
+    tokens.forEach(tk => {
+        if (tk.type !== 'K') return;
+        found.push(tk.word);
+        if (tk.k === 'karame') res.karame = /^(ナシ|ヌキ)$/.test(tk.mod || '') ? 0 : 1;
+        else if (tk.k === 'men') res.men = /^(ハンブン|ハーフ|スクナメ|ヒカエメ)$/.test(tk.mod || '') ? 0 : /^(マシ|マシマシ|オオモリ|オオメ)$/.test(tk.mod || '') ? 2 : 1;
+        else res[tk.k] = tk.mod ? level5(tk.mod) : zl;
+    });
+    if (!found.length) return null;
+    const out = Object.assign({}, CALL_DEFAULTS, res);
+    const detail = [];
+    tokens.forEach(tk => {
+        if (tk.type !== 'K') return;
+        const g = GROUPS.find(x => x.key === tk.k);
+        detail.push(tk.k === 'karame' ? (out.karame ? 'カラメ' : 'カラメなし') : tk.k === 'men' ? g.labels[out.men] : g.name + g.labels[out[tk.k]]);
+    });
+    if (res.karame && !tokens.some(x => x.type === 'K' && x.k === 'karame')) detail.push('カラメ');
+    return { state: out, found, detail };
+}
+
+/* ============================================================
+ * UI building
+ * ============================================================ */
+const consoleLog = $('console-log'), logTimestamp = $('log-timestamp');
+function appendLog(msg, cls = 'text-slate-300') {
+    const p = document.createElement('p');
+    p.className = cls;
+    const now = new Date();
+    const ts = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+    p.innerHTML = `<span class="text-slate-500">[${ts}]</span> ${msg}`;
+    consoleLog.appendChild(p);
+    while (consoleLog.children.length > 80) consoleLog.removeChild(consoleLog.firstChild);
+    consoleLog.scrollTop = consoleLog.scrollHeight;
+    logTimestamp.textContent = ts;
+}
+
+function buildUI() {
+    TICKETS.forEach((t, i) => {
+        const b = document.createElement('button');
+        b.className = 'ticket-card rounded-lg p-2 text-center transition-transform hover:-translate-y-0.5';
+        b.dataset.ticket = i;
+        b.innerHTML = `<div class="text-[10px] opacity-70">食券</div><div class="text-xs font-black leading-tight">${t.name}</div><div class="font-orbitron text-sm font-bold">¥${t.price}</div>`;
+        b.addEventListener('click', () => { state.ticket = i; sound.playServo(.08, 1100); appendLog(`食券: ${t.name} (¥${t.price})`, 'text-yellow-300'); updateUI(); });
+        $('ticket-grid').appendChild(b);
+    });
+    EXTRAS.forEach(e => {
+        const b = document.createElement('button');
+        b.className = 'cyber-btn py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1';
+        b.dataset.extra = e.key;
+        b.innerHTML = `<i class="fa-solid ${e.icon}"></i> ${e.name} <span class="text-slate-400">+¥${e.price}</span>`;
+        b.addEventListener('click', () => { state[e.key] = !state[e.key]; sound.playServo(.08, 1300); updateUI(); });
+        $('extras-grid').appendChild(b);
+    });
+    GROUPS.forEach(g => {
+        const wrap = document.createElement('div');
+        wrap.className = 'space-y-1.5';
+        wrap.innerHTML = `
+            <div class="flex justify-between text-xs font-bold">
+                <span class="${g.color}"><i class="fa-solid ${g.icon} mr-1"></i>${g.name}<span class="text-slate-500 font-normal ml-1">${g.sub}</span></span>
+                <span id="label-${g.key}" class="text-slate-300 font-mono"></span>
+            </div>
+            <div class="grid gap-1.5" style="grid-template-columns:repeat(${g.labels.length},minmax(0,1fr))" id="group-${g.key}"></div>`;
+        $('groups').appendChild(wrap);
+        g.labels.forEach((lab, v) => {
+            const b = document.createElement('button');
+            const hot = /マシ|カラメ|増し/.test(lab);
+            b.className = 'cyber-btn py-2 rounded-lg text-xs font-bold' + (hot ? ' text-amber-400' : '');
+            b.dataset.group = g.key; b.dataset.val = v; b.textContent = lab;
+            b.addEventListener('click', () => {
+                state[g.key] = v; sound.playServo(.08, 1200);
+                appendLog(`コール変更: ${g.name} → ${lab}`, 'text-cyan-300'); updateUI();
+            });
+            wrap.querySelector(`#group-${g.key}`).appendChild(b);
+        });
+    });
+    SPEEDS.forEach((s, i) => {
+        const b = document.createElement('button');
+        b.className = 'cyber-btn py-1.5 rounded-lg text-xs font-bold'; b.dataset.speed = i;
+        b.textContent = s.label + (s.id === 'turbo' ? ' ⚡' : '');
+        b.addEventListener('click', () => { speedIdx = i; updateUI(); });
+        $('speed-grid').appendChild(b);
+    });
+}
+
+function setActive(btn, on) { btn.classList.toggle('active', on); btn.setAttribute('aria-pressed', String(on)); }
+
+function updateUI() {
+    document.querySelectorAll('[data-ticket]').forEach(b => {
+        const on = +b.dataset.ticket === state.ticket;
+        b.style.outline = on ? '3px solid #22d3ee' : 'none'; b.style.transform = on ? 'translateY(-2px) scale(1.03)' : '';
+        b.setAttribute('aria-pressed', String(on));
+    });
+    document.querySelectorAll('[data-extra]').forEach(b => setActive(b, !!state[b.dataset.extra]));
+    GROUPS.forEach(g => {
+        $('label-' + g.key).textContent = g.labels[state[g.key]];
+        document.querySelectorAll(`button[data-group="${g.key}"]`).forEach(b => setActive(b, +b.dataset.val === state[g.key]));
+    });
+    document.querySelectorAll('[data-speed]').forEach(b => setActive(b, +b.dataset.speed === speedIdx));
+    $('sum-ticket').textContent = TICKETS[state.ticket].name;
+    $('sum-call').textContent = callText(state);
+    $('sum-price').textContent = '¥' + fmt(priceOf(state));
+    const best = store.best[SPEEDS[speedIdx].id];
+    $('best-time').textContent = best ? (best / 1000).toFixed(2) + '秒' : '--';
+    $('hdr-total').textContent = store.total + ' 杯';
+}
+
+function applyPreset(name) {
+    const base = { yasai: 2, garlic: 0, abura: 2, karame: 0, men: 1 };
+    let p = null;
+    if (name === 'plain') p = base;
+    else if (name === 'mashi') p = { yasai: 3, garlic: 3, abura: 3, karame: 1, men: 1 };
+    else if (name === 'mashimashi') p = { yasai: 4, garlic: 4, abura: 4, karame: 1, men: 2 };
+    else if (name === 'last') {
+        if (!store.history.length) { appendLog('履歴がありません。', 'text-slate-400'); return; }
+        Object.assign(state, store.history[0].state); updateUI(); appendLog('前回と同じ注文を復元しました。', 'text-yellow-400'); sound.playServo(.12, 1500); return;
+    } else if (name === 'random') {
+        const r = n => Math.floor(Math.random() * n);
+        p = { yasai: r(5), garlic: r(5), abura: r(5), karame: r(2), men: r(3) };
+    }
+    Object.assign(state, p); updateUI(); sound.playServo(.12, 1500);
+    appendLog(`プリセット適用: ${callText(state)}`, 'text-yellow-400');
+}
+
+function renderHistory() {
+    const ul = $('history-list'); ul.innerHTML = '';
+    if (!store.history.length) { ul.innerHTML = '<li class="text-slate-600">まだ注文がありません</li>'; return; }
+    store.history.slice(0, 5).forEach(h => {
+        const li = document.createElement('li');
+        li.className = 'flex justify-between items-center gap-2 text-slate-300 bg-slate-900/60 rounded px-2 py-1';
+        const d = new Date(h.t);
+        li.innerHTML = `<span class="truncate"><span class="text-slate-500">${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}</span> ${esc(h.ticket)} / ${esc(h.call)} / <span class="text-cyan-300">${h.sec.toFixed(2)}s</span> / <span class="text-red-300">${fmt(h.kcal)}kcal</span></span>`;
+        const b = document.createElement('button');
+        b.className = 'text-yellow-400 hover:text-yellow-200 whitespace-nowrap'; b.textContent = '再現';
+        b.addEventListener('click', () => { Object.assign(state, h.state); updateUI(); appendLog('履歴から注文を再現しました。', 'text-yellow-400'); });
+        li.appendChild(b); ul.appendChild(li);
+    });
+}
+
+/* ============================================================
+ * Canvas scene
+ * ============================================================ */
+const LW = 800, LH = 500;
+const canvas = $('ramen-canvas'), ctx = canvas.getContext('2d');
+let cw = 0, ch = 0;
+function syncCanvas() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (w !== cw || h !== ch) { canvas.width = w; canvas.height = h; cw = w; ch = h; }
+    ctx.setTransform(cw / LW, 0, 0, ch / LH, 0, 0);
+}
+function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+}
+
+const COUNTER_Y = 372, BOWL_X = 400, RIM_Y = 318;
+const ST = {
+    bowls:  { x: 60,  label: '丼' },
+    soup:   { x: 140, label: 'スープ' },
+    garlic: { x: 205, label: 'ニンニク' },
+    abura:  { x: 265, label: 'アブラ' },
+    noodle: { x: 540, label: '麺' },
+    chashu: { x: 610, label: 'チャーシュー' },
+    yasai:  { x: 680, label: 'ヤサイ' },
+    extra:  { x: 745, label: '卵・魚粉' }
+};
+
+const bowl = {};
+let STRANDS = [], CAB = [], GARLIC = [], ABURA = [], FISH = [], OIL = [];
+let particles = [];
+let tool = 'claw';
+const tip = { x: 400, y: 120 };
+let armSpeed = 0, lastTip = { x: tip.x, y: tip.y };
+let busy = false, timerRunning = false, timerStart = 0, timerValue = 0;
+
+function resetBowl(s) {
+    Object.assign(bowl, {
+        has: false, carry: false, x: BOWL_X, y: RIM_Y,
+        soup: 0, noodle: 0, noodleScale: [.55, 1, 1.35][s ? s.men : 1],
+        chashu: 0, chashuTotal: s ? TICKETS[s.ticket].chashu : 0,
+        yasaiH: 0, yasaiLv: s ? s.yasai : 2,
+        garlic: 0, garlicN: [0, 4, 10, 20, 34][s ? s.garlic : 0],
+        abura: 0, aburaN: [0, 3, 6, 10, 16][s ? s.abura : 2],
+        egg: 0, fish: 0, dark: s ? s.karame : 0
+    });
+    const rnd = Math.random, TAU = Math.PI * 2;
+    bowl.lean = (rnd() - .5) * 1.6;
+    STRANDS = Array.from({ length: 560 }, () => {
+        const th = rnd() * TAU, v = Math.pow(rnd(), .85) * .98;
+        const light = .5 + .5 * Math.cos(th - .75 * Math.PI);
+        const sh = clamp(.3 + .42 * v + .3 * light + (rnd() - .5) * .2, 0, 1);
+        const c0 = [190, 176, 102], c1 = [255, 252, 226];
+        const col = `rgb(${Math.round(lerp(c0[0], c1[0], sh))},${Math.round(lerp(c0[1], c1[1], sh))},${Math.round(lerp(c0[2], c1[2], sh))})`;
+        return { th, v, front: Math.sin(th) > 0, a: Math.PI * (.15 + rnd() * .7), len: 9 + rnd() * 10, curl: (rnd() - .5) * 1.4, w: 2 + rnd() * 1.2, col };
+    });
+    CAB = Array.from({ length: 30 }, () => ({ th: Math.PI * (.08 + rnd() * .84), v: .05 + rnd() * .65, rot: (rnd() - .5) * 1.4, s: 9 + rnd() * 9 }));
+    GARLIC = Array.from({ length: 90 }, () => ({ th: rnd() * TAU, v: .8 + rnd() * .2, dx: (rnd() - .5) * 10, dy: (rnd() - .5) * 6, s: 2 + rnd() * 1.8, c: Math.floor(rnd() * 3) }));
+    ABURA = Array.from({ length: 18 }, () => ({ th: Math.PI * (.1 + rnd() * .8), v: .5 + rnd() * .48, r: 6 + rnd() * 5, k: Array.from({ length: 7 }, () => .75 + rnd() * .45) }));
+    FISH = Array.from({ length: 70 }, () => ({ th: rnd() * TAU, v: rnd() * .95, dx: (rnd() - .5) * 8, dy: (rnd() - .5) * 5 }));
+    OIL = Array.from({ length: 34 }, () => ({ a: rnd() * TAU, r: .82 + rnd() * .15, s: 2 + rnd() * 4.5 }));
+    particles = [];
+}
+resetBowl(null);
+
+function moundR() { return 54 + clamp(bowl.yasaiH / 150, 0, 1) * 20; }
+function baseY() { return RIM_Y + 3 - 9 * bowl.noodle * bowl.noodleScale; }
+function domePoint(th, v) {
+    const H = bowl.yasaiH, R = moundR();
+    const rho = R * Math.pow(Math.max(0, 1 - Math.pow(v, 1.7)), .6);
+    return { x: BOWL_X + rho * Math.cos(th) + bowl.lean * v * H * .12, y: baseY() + rho * Math.sin(th) * .34 - v * H };
+}
+function blobPath(pts) {
+    const n = pts.length;
+    ctx.beginPath();
+    ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+    for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n]; ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2); }
+    ctx.closePath();
+}
+function drawChashu(x, y, rot) {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(2, 14, 30, 8, 0, 0, 7); ctx.fill();
+    ctx.rotate(rot);
+    ctx.fillStyle = '#4a2410'; rr(-29, -19, 58, 38, 15); ctx.fill();
+    const mg = ctx.createLinearGradient(0, -16, 0, 16); mg.addColorStop(0, '#c98a5e'); mg.addColorStop(1, '#85472a');
+    ctx.fillStyle = mg; rr(-26, -16, 52, 32, 13); ctx.fill();
+    ctx.fillStyle = 'rgba(247,222,190,.92)'; rr(-23, -14, 46, 10, 5); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,25,10,.35)'; ctx.lineWidth = 1;
+    for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(-20 + k * 3, -2 + k * 3); ctx.quadraticCurveTo(0, 0 + k * 3.4, 21 - k * 2, -3 + k * 3.2); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-10, -10, 11, 3.2, -.12, 0, 7); ctx.fill();
+    ctx.restore();
+}
+
+function burst(x, y, color, count = 8, speed = 4, g = .15) {
+    for (let i = 0; i < count; i++) particles.push({
+        x, y, vx: (Math.random() - .5) * speed, vy: (Math.random() - .8) * speed, g,
+        size: Math.random() * 3.5 + 1.5, color, life: 1, decay: Math.random() * .04 + .025
+    });
+}
+
+function drawBackground() {
+    const grad = ctx.createLinearGradient(0, 0, 0, LH);
+    grad.addColorStop(0, '#040711'); grad.addColorStop(.6, '#0f172a'); grad.addColorStop(1, '#020617');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = 'rgba(255,215,0,.07)'; ctx.font = '900 44px Orbitron, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('AI-JIRO', 40, 120);
+    ctx.fillStyle = 'rgba(0,243,255,.06)'; ctx.font = '700 22px "Noto Sans JP", sans-serif';
+    ctx.fillText('ニンニク入れますか？', 44, 150);
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(30, 28); ctx.lineTo(770, 28); ctx.stroke();
+    ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(30, 33); ctx.lineTo(770, 33); ctx.stroke();
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(0, COUNTER_Y, LW, LH - COUNTER_Y);
+    ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, COUNTER_Y); ctx.lineTo(LW, COUNTER_Y); ctx.stroke();
+    ctx.fillStyle = 'rgba(148,163,184,.08)';
+    for (let i = 0; i < 8; i++) ctx.fillRect(0, COUNTER_Y + 14 + i * 14, LW, 1);
+}
+
+function drawStations() {
+    const defs = [
+        ['soup',   '#b45309', 60], ['garlic', '#fef3c7', 46], ['abura', '#f1f5f9', 46],
+        ['noodle', '#fde68a', 54], ['chashu', '#7c2d12', 54], ['yasai', '#fef08a', 54], ['extra', '#fb923c', 46]
+    ];
+    ctx.textAlign = 'center'; ctx.font = '700 11px "Noto Sans JP", sans-serif';
+    defs.forEach(([k, col, w]) => {
+        const x = ST[k].x;
+        ctx.fillStyle = '#334155'; ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1.5;
+        rr(x - w / 2, 330, w, 42, 6); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = col; rr(x - w / 2 + 5, 335, w - 10, 12, 4); ctx.fill();
+        if (k === 'yasai') { ctx.fillStyle = '#4ade80'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(x - 15 + i * 10, 340, 3.5, 0, 7); ctx.fill(); } }
+        if (k === 'noodle' || k === 'soup') {
+            ctx.fillStyle = 'rgba(255,255,255,.07)';
+            for (let i = 0; i < 2; i++) { const o = ((performance.now() * .0012) + i * .5) % 1; ctx.beginPath(); ctx.arc(x - 8 + i * 16, 326 - o * 16, 6 + o * 5, 0, 7); ctx.fill(); }
+        }
+        ctx.fillStyle = '#94a3b8'; ctx.fillText(ST[k].label, x, 324);
+    });
+    const bx = ST.bowls.x;
+    for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = '#1e1b4b'; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(bx, 366 - i * 7, 34, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle = '#94a3b8'; ctx.fillText(ST.bowls.label, bx, 324);
+}
+
+function drawBowl() {
+    if (!bowl.has) return;
+    const bx = bowl.carry ? tip.x : bowl.x;
+    const rim = bowl.carry ? tip.y + 20 : bowl.y;
+    const x0 = BOWL_X, y0 = RIM_Y, PI = Math.PI;
+    ctx.save(); ctx.translate(bx - BOWL_X, rim - RIM_Y);
+
+    if (!bowl.carry) { ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.beginPath(); ctx.ellipse(x0, y0 + 52, 86, 10, 0, 0, 7); ctx.fill(); }
+
+    const bg = ctx.createLinearGradient(x0 - 92, 0, x0 + 92, 0);
+    bg.addColorStop(0, '#aeb7c4'); bg.addColorStop(.25, '#f4f6fa'); bg.addColorStop(.55, '#ffffff'); bg.addColorStop(1, '#98a2b3');
+    ctx.fillStyle = bg; ctx.strokeStyle = '#8e98a8'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0 - 92, y0); ctx.bezierCurveTo(x0 - 92, y0 + 24, x0 - 58, y0 + 36, x0 - 40, y0 + 44);
+    ctx.ellipse(x0, y0 + 44, 40, 8, 0, PI, 0, true);
+    ctx.bezierCurveTo(x0 + 58, y0 + 36, x0 + 92, y0 + 24, x0 + 92, y0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#c1121f'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(x0, y0 + 9, 88, 30, 0, .03, PI - .03); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for (let k = 0; k < 22; k += 2) { const th = PI * (k + .5) / 22; ctx.fillRect(x0 + 88 * Math.cos(th) - 2, y0 + 9 + 30 * Math.sin(th) - 2, 4, 4); }
+
+    const rg = ctx.createLinearGradient(x0 - 92, 0, x0 + 92, 0);
+    rg.addColorStop(0, '#c5ccd8'); rg.addColorStop(.5, '#ffffff'); rg.addColorStop(1, '#aab3c1');
+    ctx.fillStyle = rg; ctx.strokeStyle = '#9aa5b5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x0, y0, 92, 31, 0, 0, 7); ctx.fill(); ctx.stroke();
+    const ig = ctx.createLinearGradient(0, y0 - 24, 0, y0 + 28); ig.addColorStop(0, '#9aa5b5'); ig.addColorStop(1, '#e9edf3');
+    ctx.fillStyle = ig; ctx.beginPath(); ctx.ellipse(x0, y0 + 2, 83, 25.5, 0, 0, 7); ctx.fill();
+
+    const sRx = 77 * bowl.soup, sRy = 22 * bowl.soup;
+    if (bowl.soup > 0) {
+        const sg = ctx.createRadialGradient(x0, y0 + 4, 4, x0, y0 + 4, 80);
+        sg.addColorStop(0, bowl.dark ? '#6b4018' : '#a87a3c'); sg.addColorStop(1, bowl.dark ? '#3d2410' : '#6e4724');
+        ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x0, y0 + 4, sRx, sRy, 0, 0, 7); ctx.fill();
+        OIL.forEach(o => {
+            const ox = x0 + Math.cos(o.a) * sRx * o.r, oy = y0 + 4 + Math.sin(o.a) * sRy * o.r;
+            ctx.fillStyle = 'rgba(255,210,110,.5)'; ctx.strokeStyle = 'rgba(255,245,200,.8)'; ctx.lineWidth = .8;
+            ctx.beginPath(); ctx.ellipse(ox, oy, o.s * bowl.soup, o.s * .55 * bowl.soup, 0, 0, 7); ctx.fill(); ctx.stroke();
+        });
+    }
+
+    if (bowl.noodle > 0) {
+        const nL = bowl.noodle, lift = 9 * bowl.noodleScale;
+        ctx.fillStyle = '#cdb878'; ctx.beginPath(); ctx.ellipse(x0, y0 + 3 - lift * .5 * nL, 70 * nL, 19 * nL, 0, 0, 7); ctx.fill();
+        [1, .84, .68, .52, .36].forEach((r, ri) => {
+            const cy = y0 + 3 - lift * nL * (1 - r);
+            for (let seg = 0; seg < 2; seg++) {
+                const a0 = ri * 1.1 + seg * PI;
+                ctx.strokeStyle = (ri + seg) % 2 ? '#e6d49a' : '#f2e5b2'; ctx.lineWidth = 5.2; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.ellipse(x0, cy, 70 * nL * r, 19 * nL * r, 0, a0, a0 + PI * 1.35); ctx.stroke();
+                ctx.strokeStyle = 'rgba(255,246,204,.55)'; ctx.lineWidth = 1.4;
+                ctx.beginPath(); ctx.ellipse(x0, cy - 1.6, 70 * nL * r, 19 * nL * r, 0, a0 + .2, a0 + PI * .9); ctx.stroke();
+            }
+        });
+    }
+
+    if (bowl.yasaiH > 2) {
+        const H = bowl.yasaiH, R = moundR(), by = baseY();
+        ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(x0, by + 3, R + 12, (R + 12) * .36, 0, 0, 7); ctx.fill();
+        ctx.beginPath();
+        for (let i = 0; i <= 12; i++) { const p = domePoint(PI, i / 12); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
+        for (let i = 12; i >= 0; i--) { const p = domePoint(0, i / 12); ctx.lineTo(p.x, p.y); }
+        for (let i = 1; i <= 12; i++) { const p = domePoint(PI * i / 12, 0); ctx.lineTo(p.x, p.y); }
+        ctx.closePath();
+        const dg = ctx.createLinearGradient(0, by - H, 0, by + R * .34); dg.addColorStop(0, '#f4efc2'); dg.addColorStop(1, '#bfb06a');
+        ctx.fillStyle = dg; ctx.fill();
+        const n = Math.min(STRANDS.length, Math.floor(70 + H * 2.9));
+        ctx.lineCap = 'round';
+        for (let pass = 0; pass < 2; pass++) {
+            for (let i = 0; i < n; i++) {
+                const st = STRANDS[i]; if (st.front !== (pass === 1)) continue;
+                const p = domePoint(st.th, st.v);
+                ctx.strokeStyle = st.col; ctx.lineWidth = st.w;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y);
+                ctx.quadraticCurveTo(p.x + Math.cos(st.a + st.curl) * st.len * .6, p.y + Math.sin(st.a + st.curl) * st.len * .6,
+                                     p.x + Math.cos(st.a) * st.len, p.y + Math.sin(st.a) * st.len * .8);
+                ctx.stroke();
+            }
+        }
+        const cn = Math.floor(CAB.length * clamp(H / 100, .25, 1));
+        for (let i = 0; i < cn; i++) {
+            const c = CAB[i], p = domePoint(c.th, c.v);
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(c.rot);
+            ctx.fillStyle = 'rgba(224,236,176,.92)'; ctx.strokeStyle = 'rgba(160,188,110,.85)'; ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.ellipse(0, 0, c.s, c.s * .62, 0, 0, 7); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.moveTo(-c.s * .8, 0); ctx.lineTo(c.s * .8, 0); ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    for (let i = 0; i < bowl.chashu; i++) {
+        const t = bowl.chashuTotal > 1 ? i / (bowl.chashuTotal - 1) : .5;
+        const phi = PI * (.8 - .6 * t);
+        drawChashu(x0 + Math.cos(phi) * 58, baseY() + 4 + Math.sin(phi) * 16, Math.cos(phi) * .35);
+    }
+
+    ctx.strokeStyle = '#f1f4f8'; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.ellipse(x0, y0, 87.5, 28.2, 0, .02, PI - .02); ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,130,150,.5)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(x0, y0, 92, 31, 0, .02, PI - .02); ctx.stroke();
+
+    const an = Math.floor(bowl.aburaN * bowl.abura);
+    for (let i = 0; i < an; i++) {
+        const a = ABURA[i], p = domePoint(a.th, a.v);
+        const pts = a.k.map((k, j) => { const ang = j / 7 * PI * 2; return { x: p.x + Math.cos(ang) * a.r * k * 1.25, y: p.y + Math.sin(ang) * a.r * k * .8 }; });
+        const sh = pts.map(q => ({ x: q.x, y: q.y + 2 }));
+        blobPath(sh); ctx.fillStyle = 'rgba(120,100,60,.35)'; ctx.fill();
+        blobPath(pts); ctx.fillStyle = 'rgba(255,250,235,.95)'; ctx.fill(); ctx.strokeStyle = 'rgba(214,200,160,.8)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.ellipse(p.x - a.r * .35, p.y - a.r * .3, a.r * .32, a.r * .16, -.3, 0, 7); ctx.fill();
+    }
+
+    const gn = Math.floor(Math.min(GARLIC.length, bowl.garlicN * 1.8) * bowl.garlic);
+    const gcol = ['#f4e3b0', '#ead594', '#fff1c9'];
+    for (let i = 0; i < gn; i++) {
+        const g = GARLIC[i], p = domePoint(g.th, g.v);
+        ctx.fillStyle = gcol[g.c]; ctx.fillRect(p.x + g.dx, p.y + g.dy - 1, g.s, g.s * .7);
+    }
+
+    if (bowl.egg > 0) {
+        const p = domePoint(PI * .78, .45);
+        ctx.globalAlpha = bowl.egg;
+        ctx.fillStyle = '#fffdf0'; ctx.strokeStyle = '#e5dcb8'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, 17, 10, 0, 0, 7); ctx.fill(); ctx.stroke();
+        const yg = ctx.createRadialGradient(p.x - 2, p.y - 3, 1, p.x, p.y - 1, 8); yg.addColorStop(0, '#ffb347'); yg.addColorStop(1, '#f08a00');
+        ctx.fillStyle = yg; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 7, 0, 7); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.ellipse(p.x - 2.5, p.y - 4, 2.5, 1.4, -.4, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+    if (bowl.fish > 0) {
+        ctx.fillStyle = 'rgba(181,138,74,.85)';
+        const fn = Math.floor(FISH.length * bowl.fish);
+        for (let i = 0; i < fn; i++) { const f = FISH[i], p = domePoint(f.th, f.v); ctx.fillRect(p.x + f.dx, p.y + f.dy, 1.8, 1.8); }
+    }
+    ctx.restore();
+
+    if (bowl.soup > .5 && !bowl.carry) {
+        const top = baseY() - bowl.yasaiH - 18;
+        ctx.fillStyle = 'rgba(255,255,255,.05)';
+        for (let i = 0; i < 4; i++) {
+            const o = ((performance.now() * .0006) + i * .25) % 1;
+            ctx.beginPath(); ctx.arc(bx + (i - 1.5) * 22 + Math.sin(o * 6 + i) * 6, top - o * 60, 14 + o * 16, 0, 7); ctx.fill();
+        }
+    }
+}
+
+function solveArm(tx, ty) {
+    const L1 = 190, L2 = 190;
+    const bx = 400 + (tx - 400) * .6, by = 30;
+    let dx = tx - bx, dy = ty - by; const d = Math.hypot(dx, dy) || 1;
+    const cd = clamp(d, 70, L1 + L2 - 2); dx *= cd / d; dy *= cd / d;
+    const a = (L1 * L1 - L2 * L2 + cd * cd) / (2 * cd), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+    const ux = dx / cd, uy = dy / cd, px = bx + ux * a, py = by + uy * a;
+    return { bx, by, ex: px + uy * h, ey: py - ux * h, tx: bx + dx, ty: by + dy };
+}
+
+function drawTool(t) {
+    ctx.lineCap = 'round';
+    if (t === 'claw') {
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-14, 16); ctx.lineTo(-6, 20); ctx.moveTo(14, 0); ctx.lineTo(14, 16); ctx.lineTo(6, 20); ctx.moveTo(-14, 0); ctx.lineTo(14, 0); ctx.stroke();
+    } else if (t === 'ladle') {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 16); ctx.stroke();
+        ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(0, 24, 12, 0, Math.PI); ctx.fill();
+        if (bowl.ladleFull) { ctx.fillStyle = '#b45309'; ctx.beginPath(); ctx.ellipse(0, 24, 11, 3, 0, 0, 7); ctx.fill(); }
+    } else if (t === 'tongs') {
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(-10, 26); ctx.moveTo(3, 0); ctx.lineTo(10, 26); ctx.stroke();
+    } else if (t === 'scoop') {
+        ctx.fillStyle = '#94a3b8'; rr(-18, 8, 36, 14, 4); ctx.fill(); ctx.strokeStyle = '#475569'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 10); ctx.stroke();
+    } else {
+        ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.ellipse(0, 20, 8, 12, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 10); ctx.stroke();
+    }
+}
+
+function drawArm() {
+    const a = solveArm(tip.x, tip.y);
+    ctx.fillStyle = '#334155'; ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 2;
+    rr(a.bx - 22, 20, 44, 18, 4); ctx.fill(); ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 15; ctx.beginPath(); ctx.moveTo(a.bx, a.by); ctx.lineTo(a.ex, a.ey); ctx.stroke();
+    ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(a.ex, a.ey); ctx.lineTo(a.tx, a.ty); ctx.stroke();
+    ctx.strokeStyle = 'rgba(125,211,252,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.ex, a.ey); ctx.lineTo(a.tx, a.ty); ctx.stroke();
+    ctx.fillStyle = '#00f3ff'; ctx.beginPath(); ctx.arc(a.ex, a.ey, 8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#334155'; ctx.beginPath(); ctx.arc(a.bx, a.by, 10, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(a.tx, a.ty);
+    ctx.fillStyle = '#f59e0b'; rr(-10, -6, 20, 10, 3); ctx.fill();
+    ctx.shadowColor = busy ? '#10b981' : '#ef4444'; ctx.shadowBlur = 8; ctx.fillStyle = busy ? '#10b981' : '#ef4444';
+    ctx.beginPath(); ctx.arc(0, -1, 3.5, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.translate(0, 4); drawTool(tool);
+    ctx.restore();
+}
+
+function drawParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= p.decay;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawTimer() {
+    if (!timerRunning && !timerValue) return;
+    ctx.textAlign = 'right'; ctx.font = '900 30px Orbitron, sans-serif';
+    ctx.fillStyle = timerRunning ? '#fde047' : '#34d399'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+    ctx.fillText((timerValue / 1000).toFixed(2) + 's', LW - 18, 70);
+    ctx.shadowBlur = 0; ctx.font = '700 11px Orbitron, sans-serif'; ctx.fillStyle = '#94a3b8';
+    ctx.fillText('ASSEMBLY TIME', LW - 18, 86);
+}
+
+let frame = 0;
+function renderLoop() {
+    syncCanvas(); frame++;
+    ctx.clearRect(0, 0, LW, LH);
+    if (timerRunning) timerValue = performance.now() - timerStart;
+    drawBackground(); drawStations(); drawBowl(); drawParticles(); drawArm(); drawTimer();
+    armSpeed = lerp(armSpeed, Math.hypot(tip.x - lastTip.x, tip.y - lastTip.y) * 60 / 200, .2);
+    lastTip.x = tip.x; lastTip.y = tip.y;
+    if (busy && frame % 6 === 0) {
+        $('hud-speed').textContent = armSpeed.toFixed(1) + ' m/s';
+        $('hud-load').textContent = Math.round(clamp(20 + armSpeed * 18, 10, 99)) + '%';
+        $('hud-temp').textContent = (38 + (timerValue / 1000) * 3.2 + Math.random() * .4).toFixed(1) + '°C';
+    }
+    requestAnimationFrame(renderLoop);
+}
+
+/* ============================================================
+ * Animation helpers
+ * ============================================================ */
+function tween(ms, fn, ease = easeInOut) {
+    return new Promise(res => {
+        if (ms <= 0) { fn(1); res(); return; }
+        const t0 = performance.now();
+        (function f(now) {
+            const t = clamp((now - t0) / ms, 0, 1); fn(ease(t));
+            if (t < 1) requestAnimationFrame(f); else res();
+        })(t0);
+    });
+}
+
+function computeStats(s) {
+    const T = TICKETS[s.ticket];
+    const noodleG = T.noodle * [.5, 1, 1.4][s.men];
+    const yasaiG = [0, 150, 300, 450, 650][s.yasai], garlicG = [0, 5, 12, 25, 45][s.garlic], aburaG = [0, 20, 50, 90, 140][s.abura];
+    const grams = noodleG + 300 + T.chashu * 55 + yasaiG + garlicG + aburaG + (s.egg ? 55 : 0) + (s.fish ? 10 : 0);
+    const kcal = noodleG * 1.6 + 280 + T.chashu * 55 * 2.4 + yasaiG * .25 + garlicG * 1.4 + aburaG * 7.5 + (s.egg ? 80 : 0) + (s.fish ? 30 : 0);
+    const rank = kcal < 1500 ? 'ビギナー' : kcal < 2000 ? 'ガチ勢' : kcal < 2600 ? 'ジロリアン' : '伝説級 👑';
+    return { grams, kcal, rank };
+}
+
+/* ============================================================
+ * Main assembly sequence (1杯作る)
+ * ============================================================ */
+const banner = $('banner-text');
+function say(text, voice) {
+    banner.textContent = '「' + text + '」';
+    banner.classList.remove('animate-bounce');
+    if (voice) speak(text);
+}
+function setStatus(txt, cls) { $('hud-status-text').textContent = txt; $('hud-status-text').className = cls; }
+
+function lockUI(on) {
+    $('controls').classList.toggle('locked', on);
+    $('start-btn').disabled = on; $('start-btn').classList.toggle('opacity-50', on);
+}
+
+async function runAssemblyOnce(snap, opts = {}) {
+    const T = TICKETS[snap.ticket], sp = SPEEDS[speedIdx];
+    const D = ms => ms / (sp.mult * (opts.speedMult || 1));
+    const move = (x, y, ms = 300) => { const sx = tip.x, sy = tip.y; return tween(D(ms), t => { tip.x = lerp(sx, x, t); tip.y = lerp(sy, y, t); }); };
+    const call = callText(snap);
+
+    resetBowl(snap); tool = 'claw';
+    $('hud-telemetry').classList.remove('hidden'); $('hud-telemetry').classList.add('flex');
+    setStatus('STATUS: ASSEMBLY', 'text-yellow-400 font-bold');
+    appendLog(`注文受付: ${esc(T.name)} / コール「${esc(call)}」`, 'text-emerald-400 font-bold');
+    timerStart = performance.now(); timerValue = 0; timerRunning = true;
+    sound.playServo(.1, 900);
+
+    await move(ST.bowls.x, 300, 380);
+    bowl.has = true; bowl.carry = true; sound.playClank();
+    await move(BOWL_X, 298, 520);
+    bowl.carry = false; bowl.x = BOWL_X; bowl.y = RIM_Y; sound.playClank();
+    await tween(D(80), () => {});
+
+    appendLog('スープ＆カエシ 注入中...', 'text-yellow-300');
+    tool = 'ladle';
+    await move(ST.soup.x, 290, 320); bowl.ladleFull = true; sound.playSplash();
+    await move(BOWL_X, 238, 380);
+    sound.playSplash(); burst(BOWL_X, RIM_Y - 16, bowl.dark ? '#78350f' : '#f59e0b', 12, 4);
+    await tween(D(260), t => { bowl.soup = t; });
+    bowl.ladleFull = false;
+
+    appendLog(`自家製極太麺 投入 (${GROUPS[4].labels[snap.men]})`, 'text-yellow-200');
+    tool = 'tongs';
+    await move(ST.noodle.x, 292, 320);
+    await move(BOWL_X, 230, 400);
+    sound.playSplash(); burst(BOWL_X, RIM_Y - 22, '#fde68a', 10, 4);
+    await tween(D(280), t => { bowl.noodle = t; });
+
+    appendLog(`神豚(チャーシュー) ${T.chashu}枚 精密配置`, 'text-orange-400');
+    for (let c = 0; c < T.chashu; c++) {
+        await move(ST.chashu.x, 292, 220);
+        await move(BOWL_X - 40 + c * (96 / Math.max(2, T.chashu)), 270, 260);
+        sound.playClank(); bowl.chashu++; burst(BOWL_X, RIM_Y - 20, '#7c2d12', 5, 2);
+    }
+
+    const H = [0, 28, 60, 100, 150][snap.yasai];
+    if (H > 0) {
+        appendLog(`ヤサイタワー建設 (${GROUPS[1].labels[snap.yasai]})`, 'text-emerald-300');
+        tool = 'scoop';
+        const scoops = [0, 1, 1, 2, 3][snap.yasai];
+        for (let s = 0; s < scoops; s++) {
+            const from = H * s / scoops, to = H * (s + 1) / scoops;
+            await move(ST.yasai.x, 292, 280);
+            await move(BOWL_X, RIM_Y - from - 80, 320);
+            sound.playServo(.15, 1400); burst(BOWL_X, RIM_Y - from - 30, '#86efac', 12, 5);
+            await tween(D(220), t => { bowl.yasaiH = lerp(from, to, t); });
+        }
+    }
+
+    tool = 'spoon';
+    if (snap.garlic > 0) {
+        appendLog(`刻み生ニンニク 投入 (${GROUPS[0].labels[snap.garlic]})`, 'text-yellow-200');
+        await move(ST.garlic.x, 292, 300);
+        await move(BOWL_X + 10, RIM_Y - bowl.yasaiH - 60, 360);
+        sound.playSplash(); burst(BOWL_X + 10, RIM_Y - bowl.yasaiH - 20, '#fef3c7', 8, 3);
+        await tween(D(200), t => { bowl.garlic = t; });
+    }
+    if (snap.abura > 0) {
+        appendLog(`背脂アブラ 照射 (${GROUPS[2].labels[snap.abura]})`, 'text-orange-200');
+        await move(ST.abura.x, 292, 300);
+        await move(BOWL_X - 5, RIM_Y - bowl.yasaiH - 60, 360);
+        sound.playSplash(); burst(BOWL_X, RIM_Y - bowl.yasaiH - 20, '#ffffff', 10, 4);
+        await tween(D(200), t => { bowl.abura = t; });
+    }
+    if (snap.egg || snap.fish) {
+        await move(ST.extra.x, 292, 320);
+        if (snap.egg) { await move(BOWL_X - 34, RIM_Y - bowl.yasaiH - 60, 360); sound.playSplash(); appendLog('生卵 トッピング', 'text-yellow-100'); await tween(D(180), t => { bowl.egg = t; }); await move(ST.extra.x, 292, 280); }
+        if (snap.fish) { await move(BOWL_X, RIM_Y - bowl.yasaiH - 70, 340); sound.playSplash(); burst(BOWL_X, RIM_Y - bowl.yasaiH - 25, '#a16207', 12, 3); appendLog('魚粉 トッピング', 'text-yellow-100'); await tween(D(220), t => { bowl.fish = t; }); }
+    }
+
+    tool = 'claw';
+    await move(400, 130, 380);
+    timerRunning = false;
+    const elapsed = performance.now() - timerStart; timerValue = elapsed;
+    return { elapsed, call, T };
+}
+
+async function serveBowl() {
+    setStatus('STATUS: SERVING', 'text-emerald-400 font-bold');
+    appendLog('着丼！ 提供します。', 'text-emerald-400 font-bold');
+    bowl.carry = true;
+    const sx = tip.x, sy = tip.y;
+    await tween(500, t => {
+        tip.x = lerp(sx, LW + 100, t);
+        tip.y = lerp(sy, 200, t);
+    });
+    bowl.carry = false; bowl.has = false;
+    sound.playChime();
+    await tween(200, () => {});
+    tip.x = 400; tip.y = 120;
+}
+
+/* ============================================================
+ * 通常注文
+ * ============================================================ */
+async function runAssembly() {
+    if (busy) return;
+    busy = true; sound.init(); lockUI(true); showActions(false);
+    const snap = Object.assign({}, state);
+    say(`ハイ、${callText(snap) === 'そのまま' ? 'そのまま' : callText(snap)}ね！`, true);
+    appendLog('======================================', 'text-slate-600');
+    const r = await runAssemblyOnce(snap);
+    sound.playChime();
+    setStatus('STATUS: COMPLETE', 'text-emerald-400 font-bold'); $('hud-load').textContent = '10%';
+    say('お待ち！ ' + (r.call === 'そのまま' ? '' : r.call + 'です'), true);
+    appendLog(`着丼！ 盛り付け時間 ${(r.elapsed / 1000).toFixed(2)} 秒`, 'text-yellow-400 font-bold');
+
+    const st = computeStats(snap);
+    const garlicRatings = ['ZERO', 'LOW', 'NORMAL', 'STRONG', 'HYPER MAX 🔥'];
+    $('result-title').textContent = `特製 ${r.T.name} 完成！`;
+    $('result-call').textContent = `コール: ${r.call}` + (snap.egg ? ' +生卵' : '') + (snap.fish ? ' +魚粉' : '');
+    $('stat-time').textContent = (r.elapsed / 1000).toFixed(2) + ' 秒';
+    $('stat-weight').textContent = fmt(st.grams) + ' g';
+    $('stat-calories').textContent = fmt(st.kcal) + ' kcal';
+    $('stat-garlic').textContent = garlicRatings[snap.garlic];
+    $('stat-rank').textContent = st.rank;
+    $('stat-price').textContent = '¥' + fmt(priceOf(snap));
+
+    const sp = SPEEDS[speedIdx];
+    const prev = store.best[sp.id];
+    const record = !prev || r.elapsed < prev;
+    if (record) store.best[sp.id] = r.elapsed;
+    $('record-badge').classList.toggle('hidden', !record);
+    store.total++;
+    store.history.unshift({ t: Date.now(), ticket: r.T.name, call: r.call, sec: r.elapsed / 1000, kcal: st.kcal, grams: st.grams, state: snap });
+    store.history = store.history.slice(0, 20);
+    saveStore(); renderHistory(); updateUI();
+    lastResult = { snap, st, elapsed: r.elapsed, call: r.call, T: r.T };
+
+    await tween(300, () => {});
+    showActions(true);
+    $('details-btn').focus();
+    busy = false;
+}
+let lastResult = null;
+
+function showActions(on) {
+    const a = $('result-actions');
+    a.classList.toggle('hidden', !on); a.classList.toggle('flex', on);
+}
+function openDetails() { showActions(false); $('completion-modal').classList.remove('hidden'); $('reorder-btn').focus(); }
+function closeDetails() { $('completion-modal').classList.add('hidden'); showActions(true); $('details-btn').focus(); }
+
+function reorder() {
+    showActions(false);
+    $('completion-modal').classList.add('hidden');
+    lockUI(false);
+    setStatus('STATUS: STANDBY', 'text-slate-300');
+    $('hud-telemetry').classList.add('hidden'); $('hud-telemetry').classList.remove('flex');
+    say('ニンニク入れますか？', true); banner.classList.add('animate-bounce');
+    timerValue = 0; resetBowl(null);
+    tip.x = 400; tip.y = 120; tool = 'claw';
+}
+
+async function copyResult() {
+    if (!lastResult) return;
+    const { snap, st, elapsed, call, T } = lastResult;
+    const text = `🍜 RoboJiro AI 着丼！\n食券: ${T.name} (¥${fmt(priceOf(snap))})\nコール: ${call}\n盛り付け: ${(elapsed / 1000).toFixed(2)}秒 / ${fmt(st.grams)}g / ${fmt(st.kcal)}kcal\n二郎レベル: ${st.rank}\n#RoboJiro`;
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e2) {} ta.remove(); }
+    $('copy-btn').innerHTML = '<i class="fa-solid fa-check mr-1"></i> コピーしました';
+    setTimeout(() => { $('copy-btn').innerHTML = '<i class="fa-solid fa-copy mr-1"></i> 結果をコピー'; }, 1600);
+}
+
+/* ============================================================
+ * Call input
+ * ============================================================ */
+function applyCallInput(raw, source) {
+    const r = parseCall(raw);
+    if (!r) { appendLog(`${source}: 「${esc(raw)}」からコールを認識できませんでした。`, 'text-red-400'); return false; }
+    Object.assign(state, r.state); updateUI();
+    appendLog(`${source}「${esc(raw)}」→ ${esc(r.detail.join(' / ') || callText(state))}`, 'text-cyan-300');
+    if (r.detail.length && callText(r.state) === 'そのまま') appendLog('※量を言わなかった項目は「普通」です。変えたいときは「マシ」「少なめ」などを付けてください。', 'text-slate-400');
+    sound.playServo(.1, 1400); return true;
+}
+
+function setupVoiceInput() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const mic = $('mic-btn');
+    if (!SR) { mic.disabled = true; mic.classList.add('opacity-40'); mic.title = 'このブラウザは音声認識に対応していません'; return; }
+
+    let rec = null, listening = false;
+    mic.addEventListener('click', () => {
+        if (busy) return;
+        if (listening && rec) { rec.stop(); return; }
+        rec = new SR(); rec.lang = 'ja-JP'; rec.interimResults = false; rec.maxAlternatives = 5;
+
+        rec.onstart = () => { listening = true; mic.classList.add('active'); appendLog('聴き取り中...', 'text-yellow-300'); };
+        rec.onend = () => { listening = false; mic.classList.remove('active'); };
+
+        rec.onerror = e => {
+            appendLog('音声認識エラー: ' + esc(e.error), 'text-red-400');
+        };
+
+        rec.onresult = e => {
+            const alts = Array.from(e.results[0]).map(a => a.transcript);
+            $('call-input').value = alts[0];
+            appendLog('認識候補: ' + alts.map(esc).join(' / '), 'text-slate-500');
+            let best = null, bestRaw = '';
+            for (const a of alts) {
+                const r = parseCall(a);
+                if (r && (!best || r.found.length > best.found.length)) { best = r; bestRaw = a; }
+            }
+            if (best) applyCallInput(bestRaw, '音声認識');
+            else appendLog('音声認識: コールを認識できませんでした。', 'text-red-400');
+        };
+        try { rec.start(); } catch (err) {
+            appendLog('音声認識の開始に失敗しました。', 'text-red-400');
+        }
+    });
+}
+
+/* ============================================================
+ * Launch Check Mode (ヤマト式発信前確認)
+ * ============================================================ */
+const DEPT_KEYWORDS = {
+    yasai: ['ヤサイ', '野菜', 'もやし', 'モヤシ', 'キャベツ'],
+    garlic: ['ニンニク', 'にんにく', '大蒜', 'ガーリック'],
+    abura: ['アブラ', 'あぶら', '脂', '背脂'],
+    soup: ['スープ', 'すーぷ', '豚骨', '醤油', 'カエシ'],
+    noodle: ['麺', 'めん', 'メン', '麺類'],
+    chashu: ['チャーシュー', 'ちゃーしゅー', '豚', 'ぶた', 'ブタ', 'チャーシュ']
+};
+
+const SPEECH_CORRECTIONS = {
+    '回転': '開店', '解店': '開店', '海店': '開店', '買店': '開店',
+    '快調': '開店', '快店': '開店', '階店': '開店', '会店': '開店',
+    '改店': '開店', '怪店': '開店', '貝店': '開店', '甲店': '開店',
+    '閉店': '開店', 'カイテン': '開店', 'かいてん': '開店'
+};
+
+const LC = {
+    DEPTS: [
+        { key: 'yasai',  name: 'ヤサイ（モヤシ・キャベツ）', short: 'ヤサイ',   icon: 'fa-leaf',           ok: true },
+        { key: 'garlic', name: 'ニンニク（刻み生）',         short: 'ニンニク', icon: 'fa-drumstick-bite', ok: true },
+        { key: 'abura',  name: 'アブラ（背脂）',             short: 'アブラ',   icon: 'fa-droplet',        ok: true },
+        { key: 'soup',   name: 'スープ（豚骨醤油）',         short: 'スープ',   icon: 'fa-mug-hot',        ok: true },
+        { key: 'noodle', name: '麺（自家製極太）',           short: '麺',       icon: 'fa-bowl-rice',      ok: true },
+        { key: 'chashu', name: '豚（チャーシュー）',         short: '豚',       icon: 'fa-bacon',          ok: true }
+    ],
+    phase: 'idle',
+    micActive: false,
+    recognition: null,
+    overlay: null,
+    SR: null,
+    reportedOnce: false,
+    discoveredMissing: [],
+
+    init() {
+        this.overlay = $('launch-check-overlay');
+        this.resetDepts();
+        $('lc-main-btn').addEventListener('click', () => this.onMainButton());
+        this.setupVoice();
+        appendLog('> 発信前確認モード起動。音声入力を待機中...', 'text-cyan-400');
+    },
+
+    resetDepts() {
+        this.reportedOnce = false;
+        this.discoveredMissing = [];
+        this.DEPTS.forEach(d => d.ok = true);
+        const list = $('lc-dept-list');
+        list.innerHTML = '';
+        this.DEPTS.forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'lc-dept hidden-status';
+            el.dataset.dept = d.key;
+            el.innerHTML = `<span class="dept-name"><i class="fa-solid ${d.icon} mr-2 text-cyan-400"></i>${d.name}</span><span class="dept-status">--</span>`;
+            list.appendChild(el);
+        });
+    },
+
+    setStatus(main, sub) {
+        $('lc-status').textContent = main;
+        $('lc-sub').textContent = sub || '';
+    },
+
+    consoleLog(msg, cls = '') {
+        const p = document.createElement('p');
+        p.className = cls;
+        p.textContent = '> ' + msg;
+        $('lc-console').appendChild(p);
+        $('lc-console').scrollTop = $('lc-console').scrollHeight;
+        while ($('lc-console').children.length > 30) $('lc-console').removeChild($('lc-console').firstChild);
+    },
+
+    deptEl(key) { return $('lc-dept-list').querySelector(`[data-dept="${key}"]`); },
+    missingDepts() { return this.DEPTS.filter(d => !d.ok); },
+    knownMissing() { return this.missingDepts().filter(d => this.discoveredMissing.includes(d.key)); },
+
+    setupVoice() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            $('lc-main-btn').textContent = '▶ システム起動（音声非対応）';
+            return;
+        }
+        this.SR = SR;
+        setTimeout(() => this.startListening(), 600);
+    },
+
+    startListening() {
+        if (!this.SR) return;
+        if (this.recognition) { try { this.recognition.stop(); } catch (e) {} }
+        const rec = new this.SR();
+        rec.lang = 'ja-JP'; rec.continuous = false; rec.interimResults = false;
+        rec.onstart = () => { this.micActive = true; $('lc-main-btn').classList.add('mic-listening'); };
+        rec.onend   = () => { this.micActive = false; $('lc-main-btn').classList.remove('mic-listening'); };
+        rec.onerror = e => {
+            this.micActive = false; $('lc-main-btn').classList.remove('mic-listening');
+            if (e.error === 'no-speech') this.consoleLog('音声未検出。ボタンで操作できます。', 'warn');
+            else if (e.error === 'not-allowed') this.consoleLog('マイク未許可。ボタンで操作できます。', 'warn');
+            else this.consoleLog('音声認識エラー: ' + e.error, 'ng');
+        };
+        rec.onresult = e => {
+            const txt = e.results[0][0].transcript;
+            this.consoleLog('認識: 「' + txt + '」');
+            this.handleUtterance(txt);
+        };
+        try { rec.start(); } catch (err) {
+            this.consoleLog('マイク起動失敗。ボタンをご利用ください。', 'warn');
+        }
+        this.recognition = rec;
+    },
+
+    correctSpeech(text) {
+        let t = text;
+        for (const [wrong, right] of Object.entries(SPEECH_CORRECTIONS)) {
+            t = t.split(wrong).join(right);
+        }
+        return t;
+    },
+
+    detectDeptKeys(text) {
+        const t = String(text).normalize('NFKC');
+        const keys = [];
+        for (const [key, words] of Object.entries(DEPT_KEYWORDS)) {
+            if (words.some(w => t.includes(w))) keys.push(key);
+        }
+        return keys;
+    },
+
+    handleUtterance(raw) {
+        const corrected = this.correctSpeech(raw);
+        if (corrected !== raw) {
+            this.consoleLog(`補正: 「${raw}」→「${corrected}」`, 'warn');
+        }
+        const t = String(corrected).normalize('NFKC').replace(/[\s、。,.!！?？「」・]/g, '');
+
+        if (this.phase === 'idle' && /システム起動|起動|スタート|始め|はじめ|発進準備/.test(t)) {
+            this.arm();
+            return;
+        }
+        if (this.phase === 'ready' && /各部署|全部署|状態|報告|状況|確認|ステータス/.test(t)) {
+            this.reportAll();
+            return;
+        }
+        if (this.phase === 'ready' && this.reportedOnce) {
+            const keys = this.detectDeptKeys(t);
+            const isSupplyCommand = /補給|ほきゅう|ホキュー|補充|ほじゅう|ホジュウ|満タン|フル/.test(t);
+            if (isSupplyCommand && keys.length === 0) {
+                const miss = this.knownMissing();
+                if (miss.length) { this.refillDepts(miss.map(d => d.key)); return; }
+            }
+            if (keys.length) {
+                const miss = this.knownMissing();
+                const toFill = miss.filter(d => keys.includes(d.key));
+                if (toFill.length) { this.refillDepts(toFill.map(d => d.key)); return; }
+                const alreadyOk = this.DEPTS.filter(d => d.ok && keys.includes(d.key));
+                if (alreadyOk.length) {
+                    this.consoleLog(`${alreadyOk.map(d => d.short).join('、')} は既に充足しています。`, 'ok');
+                    speakReport(`${alreadyOk.map(d => d.short).join('、')}、既に充足`);
+                    setTimeout(() => this.startListening(), 1200);
+                    return;
+                }
+            }
+        }
+        if (this.phase === 'done' && /開店|オープン|営業開始|受付開始|スタート|発進|着丼|出撃/.test(t)) {
+            this.openShop();
+            return;
+        }
+
+        if (this.phase === 'idle') this.setStatus('音声入力待機中...', '「システム起動」と話しかけてください');
+        else if (this.phase === 'ready') {
+            if (!this.reportedOnce) this.setStatus('在庫状態: 未確認', '「各部署、状態を報告せよ」と話しかけてください');
+            else {
+                const miss = this.knownMissing();
+                if (miss.length) this.setStatus('⚠ 在庫不足あり', `不足: ${miss.map(d => d.short).join('、')} — 名前を言って補充`);
+                else this.setStatus('在庫状態: 異常なし', 'もう一度「各部署、状態を報告せよ」で開店準備へ');
+            }
+        }
+        else if (this.phase === 'done') this.setStatus('開店準備完了', '「開店！」と話しかけてください');
+    },
+
+    onMainButton() {
+        if (this.phase === 'idle') { this.arm(); }
+        else if (this.phase === 'ready') {
+            if (!this.reportedOnce) { this.reportAll(); return; }
+            const miss = this.knownMissing();
+            if (miss.length) { this.refillDepts(miss.map(d => d.key)); return; }
+            this.reportAll();
+        }
+        else if (this.phase === 'done') { this.openShop(); }
+        else if (this.phase === 'arming') { this.consoleLog('処理中です...', 'warn'); }
+        else if (this.phase === 'reporting') { this.consoleLog('報告シーケンス進行中...', 'warn'); }
+        else if (this.phase === 'refilling') { this.consoleLog('補充シーケンス進行中...', 'warn'); }
+        else if (this.phase === 'opening') { this.consoleLog('開店処理中...', 'warn'); }
+    },
+
+    /* ===== 大げさな起動シーケンス ===== */
+    async arm() {
+        if (this.phase !== 'idle') return;
+        this.phase = 'arming';
+        $('lc-main-btn').disabled = true;
+        $('lc-main-btn').textContent = '...起動中...';
+
+        // 大げさなSE
+        sound.playBootSequence();
+
+        // レーダー高速回転＋画面フラッシュ
+        const radar = $('lc-radar');
+        radar.classList.add('booting');
+        const flash = $('lc-flash');
+        flash.classList.add('fire');
+        setTimeout(() => flash.classList.remove('fire'), 400);
+
+        this.consoleLog('メインシステム、スタートアップ...', 'ok');
+        this.setStatus('メインシステム、起動中...', 'CORE SYSTEM BOOTING');
+
+        // 管制室の掛け声（段階的に）
+        setTimeout(() => speakReport('メインシステム、スタートアップ。全系統、正常'), 100);
+        setTimeout(() => {
+            this.setStatus('メインエンジン、アイドリング中...', 'IGNITION SEQUENCE');
+            this.consoleLog('メインエンジン、アイドリング...', 'ok');
+            speakReport('メインエンジン、アイドリング正常');
+        }, 1000);
+        setTimeout(() => {
+            this.setStatus('全系統、チェック中...', 'SYSTEMS CHECK');
+            this.consoleLog('全系統チェック...', 'ok');
+        }, 1800);
+
+        setTimeout(() => {
+            radar.classList.remove('booting');
+            this.DEPTS.forEach(d => { d.ok = Math.random() > 0.2; });
+            this.reportedOnce = false;
+            this.discoveredMissing = [];
+            this.phase = 'ready';
+            $('lc-main-btn').disabled = false;
+            $('lc-main-btn').textContent = '📋 各部署報告';
+            $('lc-main-btn').classList.remove('supply-mode', 'open-mode');
+
+            this.DEPTS.forEach(d => {
+                const el = this.deptEl(d.key);
+                el.classList.remove('show', 'ok', 'ng', 'checking', 'refilled', 'reporting');
+                el.classList.add('hidden-status');
+                el.querySelector('.dept-status').textContent = '--';
+            });
+
+            this.setStatus('全システム、スタンバイ', '「各部署、状態を報告せよ」と話しかけてください');
+            this.consoleLog('全システム、スタンバイ完了。在庫状態は未確認。', 'ok');
+            // 管制室あるあるの掛け声
+            setTimeout(() => {
+                sound.playChannelOpen();
+                setTimeout(() => speakReport('全システム、スタンバイ。各部署、応答願います。こちら管制室'), 250);
+            }, 100);
+            setTimeout(() => this.startListening(), 2000);
+        }, 2600);
+    },
+
+    async reportAll() {
+        if (this.phase !== 'ready') return;
+        this.phase = 'reporting';
+        $('lc-main-btn').disabled = true;
+        $('lc-main-btn').textContent = '...報告中...';
+        $('lc-main-btn').classList.remove('supply-mode', 'open-mode');
+        this.setStatus('各部署、報告中...', '');
+        this.consoleLog('=== 部署状態確認シーケンス開始 ===', 'warn');
+
+        sound.playChannelOpen();
+        setTimeout(() => speakReport('こちら管制室。各部署、状態を報告せよ'), 250);
+
+        this.discoveredMissing = [];
+        let allOk = true;
+        // 最初の読み上げを待つ
+        await new Promise(r => setTimeout(r, 1600));
+
+        for (let i = 0; i < this.DEPTS.length; i++) {
+            const d = this.DEPTS[i];
+            const el = this.deptEl(d.key);
+            el.classList.add('show', 'checking', 'reporting');
+            el.classList.remove('ok', 'ng', 'refilled', 'hidden-status');
+            el.querySelector('.dept-status').textContent = 'CHECKING...';
+
+            sound.playReportBeep();
+            await new Promise(r => setTimeout(r, 320));
+            el.classList.remove('checking');
+
+            if (d.ok) {
+                el.classList.add('ok');
+                el.querySelector('.dept-status').textContent = 'OK';
+                this.consoleLog(`${d.name}: OK`, 'ok');
+                speakReport(`${d.short}、ヨシ`);
+            } else {
+                el.classList.add('ng');
+                el.querySelector('.dept-status').textContent = '不足';
+                this.consoleLog(`${d.name}: 在庫不足`, 'ng');
+                speakReport(`${d.short}、在庫不足`);
+                this.discoveredMissing.push(d.key);
+                allOk = false;
+            }
+            setTimeout(() => el.classList.remove('reporting'), 800);
+            await new Promise(r => setTimeout(r, 520));
+        }
+
+        this.reportedOnce = true;
+
+        if (allOk) {
+            this.phase = 'done';
+            $('lc-main-btn').disabled = false;
+            $('lc-main-btn').textContent = '🚪 開店！';
+            $('lc-main-btn').classList.remove('supply-mode');
+            $('lc-main-btn').classList.add('open-mode');
+            this.setStatus('開店準備完了', '「開店！」と話しかけてください');
+            this.consoleLog('=== 全部署、異常なし。開店準備完了 ===', 'ok');
+            sound.playChime();
+            setTimeout(() => {
+                sound.playChannelOpen();
+                setTimeout(() => speakReport('各部署、異常なし。開店準備、よし'), 250);
+            }, 100);
+            setTimeout(() => this.startListening(), 1600);
+        } else {
+            this.phase = 'ready';
+            $('lc-main-btn').disabled = false;
+            $('lc-main-btn').textContent = '📦 不足分を補充';
+            $('lc-main-btn').classList.add('supply-mode');
+            const miss = this.knownMissing();
+            this.setStatus('⚠ 在庫不足を検知', `不足: ${miss.map(d => d.short).join('、')} — 名前を言って補充`);
+            this.consoleLog(`=== 在庫不足: ${miss.map(d => d.short).join('、')} ===`, 'warn');
+            sound.playAlarm();
+            setTimeout(() => {
+                sound.playChannelOpen();
+                setTimeout(() => speakReport(`在庫不足。${miss.map(d => d.short).join('、')}。名前を言って、補充してください`), 250);
+            }, 100);
+            setTimeout(() => this.startListening(), 1800);
+        }
+    },
+
+    async refillDepts(keys) {
+        if (this.phase !== 'ready') return;
+        if (!keys.length) return;
+        this.phase = 'refilling';
+        $('lc-main-btn').disabled = true;
+        $('lc-main-btn').textContent = '...補充中...';
+        $('lc-main-btn').classList.remove('supply-mode');
+        const names = keys.map(k => this.DEPTS.find(d => d.key === k).short).join('、');
+        this.setStatus('補充作業中...', `対象: ${names}`);
+        this.consoleLog(`=== 補充シーケンス: ${names} ===`, 'ok');
+        sound.playRefill();
+        sound.playChannelOpen();
+        setTimeout(() => speakReport(`${names}、補充します`), 250);
+
+        for (const key of keys) {
+            await new Promise(r => setTimeout(r, 380));
+            const d = this.DEPTS.find(x => x.key === key);
+            if (!d || d.ok) continue;
+            d.ok = true;
+            const el = this.deptEl(key);
+            el.classList.add('refilled', 'reporting');
+            el.classList.remove('ng');
+            el.classList.add('ok');
+            el.querySelector('.dept-status').textContent = 'FULL';
+            this.consoleLog(`${d.name}: 補充完了 → FULL`, 'ok');
+            sound.playReportBeep();
+            sound.playServo(.12, 1600);
+            speakReport(`${d.short}、補充完了`);
+            setTimeout(() => el.classList.remove('reporting'), 800);
+            await new Promise(r => setTimeout(r, 480));
+        }
+
+        await new Promise(r => setTimeout(r, 400));
+        this.phase = 'ready';
+        $('lc-main-btn').disabled = false;
+        const miss = this.knownMissing();
+        if (miss.length) {
+            $('lc-main-btn').textContent = '📦 不足分を補充';
+            $('lc-main-btn').classList.add('supply-mode');
+            this.setStatus('⚠ 在庫不足あり', `残りの不足: ${miss.map(d => d.short).join('、')} — 名前を言って補充`);
+            this.consoleLog(`=== 補充完了。残りの不足: ${miss.map(d => d.short).join('、')} ===`, 'warn');
+            setTimeout(() => {
+                sound.playChannelOpen();
+                setTimeout(() => speakReport(`補充完了。残りの不足、${miss.map(d => d.short).join('、')}`), 250);
+            }, 100);
+        } else {
+            $('lc-main-btn').textContent = '📋 各部署報告';
+            $('lc-main-btn').classList.remove('supply-mode');
+            this.setStatus('補充完了', '「各部署、状態を報告せよ」で最終確認');
+            this.consoleLog('=== 補充完了。再確認を要求 ===', 'ok');
+            sound.playChime();
+            setTimeout(() => {
+                sound.playChannelOpen();
+                setTimeout(() => speakReport('補充完了。各部署、状態を再報告せよ'), 250);
+            }, 100);
+        }
+        setTimeout(() => this.startListening(), 1600);
+    },
+
+    async openShop() {
+        if (this.phase !== 'done') return;
+        this.phase = 'opening';
+        $('lc-main-btn').disabled = true;
+        $('lc-main-btn').textContent = '...開店処理中...';
+        $('lc-main-btn').classList.remove('open-mode');
+        this.setStatus('🏮 開 店 ！ 🏮', '');
+        this.consoleLog('=== 開店 ===', 'ok');
+        speakReport('総員、開店配置。開店！');
+        sound.playOpen();
+
+        const flash = $('lc-flash');
+        flash.classList.add('fire', 'green');
+        setTimeout(() => flash.classList.remove('fire', 'green'), 700);
+
+        this.setStatus('🏮 開 店 ！ 🏮', 'ご来店ありがとうございます');
+
+        await new Promise(r => setTimeout(r, 1400));
+        this.overlay.classList.add('fade-out');
+        await new Promise(r => setTimeout(r, 600));
+        this.overlay.style.display = 'none';
+
+        appendLog('> 発信前確認モード完了。開店！', 'text-emerald-400 font-bold');
+        this.phase = 'idle';
+
+        await new Promise(r => setTimeout(r, 400));
+        Rush.start();
+    },
+
+    rearm() {
+        if (!this.overlay || this.overlay.style.display === 'none') return;
+        if (!this.micActive && ['idle', 'ready', 'done'].includes(this.phase)) this.startListening();
+    }
+};
+
+/* ============================================================
+ * Rush Mode (客襲来ラッシュ)
+ * ============================================================ */
+const CUSTOMER_NAMES = ['客A', '客B', '客C'];
+const CUSTOMER_ICONS = ['🧑', '👩', '🧔'];
+const RUSH_CALL_PATTERNS = [
+    { yasai: 4, garlic: 4, abura: 3, karame: 1, men: 1, egg: false, fish: false, label: 'ヤサイマシマシ ニンニク アブラ' },
+    { yasai: 3, garlic: 3, abura: 3, karame: 1, men: 1, egg: false, fish: false, label: '全マシ' },
+    { yasai: 2, garlic: 0, abura: 2, karame: 0, men: 1, egg: false, fish: false, label: 'そのまま' },
+    { yasai: 4, garlic: 4, abura: 4, karame: 1, men: 2, egg: true,  fish: false, label: '全マシマシ 麺増し 生卵' },
+    { yasai: 3, garlic: 4, abura: 3, karame: 1, men: 1, egg: false, fish: true,  label: 'ヤサイマシ ニンニクマシマシ アブラ 魚粉' },
+    { yasai: 4, garlic: 3, abura: 2, karame: 1, men: 0, egg: false, fish: false, label: 'ヤサイマシマシ ニンニクマシ カラメ 麺半分' },
+    { yasai: 3, garlic: 3, abura: 3, karame: 0, men: 1, egg: true,  fish: false, label: 'ヤサイマシ ニンニクマシ アブラ 生卵' }
+];
+
+const Rush = {
+    active: false,
+    customers: [],
+    timeLimit: 30000,
+    timeLeft: 0,
+    startTime: 0,
+    rafId: null,
+    servedCount: 0,
+    currentIdx: -1,
+
+    async start() {
+        if (this.active) return;
+        this.active = true;
+        this.servedCount = 0;
+        this.currentIdx = -1;
+        this.timeLimit = 30000;
+        this.startTime = performance.now();
+
+        const sp = SPEEDS[speedIdx];
+        this.timeLimit *= (sp.mult >= 2 ? .8 : sp.mult <= .7 ? 1.4 : 1);
+        this.timeLeft = this.timeLimit;
+
+        appendLog('======================================', 'text-emerald-400');
+        appendLog('🏮 開店！ 右前方より客3名 来店！', 'text-emerald-400 font-bold');
+        sound.playRushStart();
+        speakReport('開店！ 右前方より、客、三名、来店！');
+
+        this.customers = [];
+        const panel = $('customers-panel');
+        panel.innerHTML = '';
+
+        const pool = [...RUSH_CALL_PATTERNS];
+        for (let i = 0; i < 3; i++) {
+            const idx = Math.floor(Math.random() * pool.length);
+            const pattern = pool.splice(idx, 1)[0];
+            const cust = {
+                name: CUSTOMER_NAMES[i],
+                icon: CUSTOMER_ICONS[i],
+                order: pattern,
+                state: Object.assign({}, DEFAULT_STATE, {
+                    yasai: pattern.yasai, garlic: pattern.garlic, abura: pattern.abura,
+                    karame: pattern.karame, men: pattern.men, egg: pattern.egg, fish: pattern.fish
+                }),
+                served: false,
+                idx: i
+            };
+            this.customers.push(cust);
+
+            const el = document.createElement('div');
+            el.className = 'cust-card';
+            el.dataset.idx = i;
+            el.innerHTML = `
+                <div class="cust-face">${cust.icon}</div>
+                <div class="cust-info">
+                    <div class="cust-name">${cust.name}</div>
+                    <div class="cust-call">${cust.order.label}</div>
+                    <div class="cust-status">WAITING</div>
+                </div>`;
+            panel.appendChild(el);
+            setTimeout(() => el.classList.add('show'), 200 + i * 300);
+        }
+
+        $('rush-timer').classList.add('show');
+        $('rush-result-banner').classList.remove('show');
+        this.tick();
+
+        await new Promise(r => setTimeout(r, 1200));
+        for (let i = 0; i < this.customers.length; i++) {
+            this.announceCustomer(i);
+            await new Promise(r => setTimeout(r, 1400));
+        }
+
+        await new Promise(r => setTimeout(r, 600));
+        this.startNextCustomer();
+    },
+
+    announceCustomer(i) {
+        const c = this.customers[i];
+        const el = document.querySelector(`.cust-card[data-idx="${i}"]`);
+        if (el) { el.style.transform = 'scale(1.08)'; setTimeout(() => el.style.transform = '', 400); }
+        appendLog(`客${i+1}「${c.order.label}」`, 'text-yellow-300 font-bold');
+        speak(`客${i+1}、${c.order.label.replace(/マシマシ/g, 'マシマシ、').replace(/マシ/g, 'マシ、')}`, 1.05);
+    },
+
+    tick() {
+        if (!this.active) return;
+        const elapsed = performance.now() - this.startTime;
+        this.timeLeft = Math.max(0, this.timeLimit - elapsed);
+        $('rush-time-val').textContent = (this.timeLeft / 1000).toFixed(1);
+
+        if (this.timeLeft < 10000) $('rush-timer').classList.add('danger');
+        else $('rush-timer').classList.remove('danger');
+
+        if (this.timeLeft <= 0 && this.active) {
+            this.finish(false);
+            return;
+        }
+        this.rafId = requestAnimationFrame(() => this.tick());
+    },
+
+    async startNextCustomer() {
+        this.currentIdx++;
+        if (this.currentIdx >= this.customers.length) {
+            this.finish(true);
+            return;
+        }
+        const c = this.customers[this.currentIdx];
+        const el = document.querySelector(`.cust-card[data-idx="${this.currentIdx}"]`);
+        if (el) el.classList.add('active');
+        const status = el?.querySelector('.cust-status');
+        if (status) status.textContent = 'ORDER NOW!';
+
+        appendLog(`▼ ${c.name} 調理開始: ${c.order.label}`, 'text-cyan-300 font-bold');
+        speak(`${c.name}、お待ち！`, 1.1);
+
+        busy = true; sound.init(); lockUI(true);
+        const r = await runAssemblyOnce(c.state, { speedMult: 1.3 });
+        sound.playChime();
+
+        await serveBowl();
+
+        c.served = true;
+        this.servedCount++;
+        if (el) {
+            el.classList.remove('active');
+            el.classList.add('served');
+            const s = el.querySelector('.cust-status');
+            if (s) s.textContent = 'SERVED ✓';
+        }
+        appendLog(`→ ${c.name} 提供完了 (${(r.elapsed/1000).toFixed(2)}s)`, 'text-emerald-400 font-bold');
+        speak(`${c.name}、お待ちどうさま`, 1.1);
+
+        busy = false; lockUI(false);
+
+        await new Promise(r => setTimeout(r, 500));
+        this.startNextCustomer();
+    },
+
+    finish(success) {
+        if (!this.active) return;
+        this.active = false;
+        if (this.rafId) cancelAnimationFrame(this.rafId);
+        $('rush-timer').classList.remove('show', 'danger');
+
+        const banner = $('rush-result-banner');
+        const title = $('rush-result-title');
+        const sub = $('rush-result-sub');
+        const stats = $('rush-result-stats');
+
+        const totalTime = ((performance.now() - this.startTime) / 1000).toFixed(2);
+        const avgTime = this.servedCount > 0 ? (totalTime / this.servedCount).toFixed(2) : '--';
+
+        if (success) {
+            title.textContent = 'RUSH CLEAR!';
+            title.className = 'rush-result-title success';
+            sub.textContent = `3名全員に提供完了！お見事！`;
+            appendLog('🏆 RUSH CLEAR! 3名全員提供完了！', 'text-emerald-400 font-bold');
+            sound.playVictory();
+            speakReport('ラッシュクリア。三名全員、提供完了。お見事');
+        } else {
+            title.textContent = 'TIME UP...';
+            title.className = 'rush-result-title fail';
+            sub.textContent = `${this.servedCount}/3名 提供。時間切れ...`;
+            appendLog(`⏰ TIME UP... ${this.servedCount}/3名 提供`, 'text-red-400 font-bold');
+            sound.playDefeat();
+            speakReport(`タイムアップ。${this.servedCount}名、提供完了`);
+        }
+
+        stats.innerHTML = `
+            <div>提供完了</div><div>${this.servedCount} / 3 名</div>
+            <div>総所要時間</div><div>${totalTime}s</div>
+            <div>平均盛り付け</div><div>${avgTime}s</div>
+            <div>制限時間</div><div>${(this.timeLimit/1000).toFixed(0)}s</div>
+        `;
+
+        banner.classList.add('show');
+        $('hud-telemetry').classList.add('hidden'); $('hud-telemetry').classList.remove('flex');
+        setStatus(success ? 'STATUS: RUSH CLEAR' : 'STATUS: TIME UP', success ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold');
+        $('hud-load').textContent = '10%';
+
+        store.total += this.servedCount;
+        this.customers.forEach(c => {
+            if (c.served) {
+                const st = computeStats(c.state);
+                store.history.unshift({ t: Date.now(), ticket: TICKETS[c.state.ticket].name, call: c.order.label, sec: 0, kcal: st.kcal, grams: st.grams, state: c.state });
+            }
+        });
+        store.history = store.history.slice(0, 20);
+        saveStore(); renderHistory(); updateUI();
+    },
+
+    reset() {
+        this.active = false;
+        if (this.rafId) cancelAnimationFrame(this.rafId);
+        $('rush-timer').classList.remove('show', 'danger');
+        $('rush-result-banner').classList.remove('show');
+        $('customers-panel').innerHTML = '';
+        this.customers = [];
+        this.servedCount = 0;
+        this.currentIdx = -1;
+        busy = false; lockUI(false);
+        setStatus('STATUS: STANDBY', 'text-slate-300');
+        resetBowl(null);
+        tip.x = 400; tip.y = 120; tool = 'claw';
+    }
+};
+
+/* ============================================================
+ * Init
+ * ============================================================ */
+window.addEventListener('DOMContentLoaded', () => {
+    buildUI(); updateUI(); renderHistory(); setupVoiceInput();
+    banner.classList.add('animate-bounce');
+    appendLog('> AI二郎 オペレーショナルシステム v4 起動完了。', 'text-cyan-400');
+    appendLog('> 発信前確認モードで音声入力を待機中...', 'text-cyan-400');
+    appendLog('> 「システム起動」と話しかけてください。', 'text-yellow-400');
+
+    $('start-btn').addEventListener('click', () => {
+        if (Rush.active) { appendLog('営業中は注文できません！', 'text-amber-400'); return; }
+        runAssembly();
+    });
+    $('reorder-btn').addEventListener('click', reorder);
+    $('copy-btn').addEventListener('click', copyResult);
+    $('details-btn').addEventListener('click', openDetails);
+    $('close-modal-btn').addEventListener('click', closeDetails);
+    $('view-reorder-btn').addEventListener('click', reorder);
+    $('call-apply').addEventListener('click', () => { const v = $('call-input').value.trim(); if (v) applyCallInput(v, '入力'); });
+    $('call-input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const v = e.target.value.trim(); if (v) applyCallInput(v, '入力'); } });
+    document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+    $('clear-history').addEventListener('click', () => { store.history = []; store.best = {}; saveStore(); renderHistory(); updateUI(); });
+
+    $('rush-restart-btn').addEventListener('click', () => {
+        $('rush-result-banner').classList.remove('show');
+        Rush.reset();
+        setTimeout(() => Rush.start(), 400);
+    });
+
+    $('audio-toggle-btn').addEventListener('click', () => {
+        sound.enabled = !sound.enabled; if (sound.enabled) sound.init();
+        $('audio-icon').className = 'fa-solid ' + (sound.enabled ? 'fa-volume-high text-cyan-400' : 'fa-volume-xmark text-slate-500');
+        $('audio-status').textContent = 'SOUND: ' + (sound.enabled ? 'ON' : 'OFF');
+        $('audio-toggle-btn').setAttribute('aria-pressed', String(sound.enabled));
+    });
+    $('voice-toggle-btn').addEventListener('click', () => {
+        voiceEnabled = !voiceEnabled; if (!voiceEnabled && 'speechSynthesis' in window) speechSynthesis.cancel();
+        $('voice-status').textContent = '店主: ' + (voiceEnabled ? 'ON' : 'OFF');
+        $('voice-icon').className = 'fa-solid ' + (voiceEnabled ? 'fa-comment-dots' : 'fa-comment-slash');
+        $('voice-toggle-btn').setAttribute('aria-pressed', String(voiceEnabled));
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const tag = (e.target.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'BUTTON') return;
+        if (!$('completion-modal').classList.contains('hidden')) reorder();
+        else if (!$('result-actions').classList.contains('hidden')) openDetails();
+        else if (!Rush.active) runAssembly();
+    });
+
+    LC.init();
+    renderLoop();
+});
+</script>
+</body>
+</html>
